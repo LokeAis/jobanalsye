@@ -387,7 +387,7 @@ export default function JobAnalysis({ answers, notes, onSaveNote, onNavigateToTa
         </h2>
         <p className="text-slate-600 text-sm sm:text-base max-w-3xl leading-relaxed">
           Skriv inn stillingen du søker på og eventuelt stillingsbeskrivelsen. 
-          Gemini AI vil automatisk analysere din personlighetsprofil opp mot rollens krav og gi deg skreddersydde styrker, utfordringer og intervjusvar!
+          Vi analyserer automatisk personlighetsprofilen din opp mot rollens krav og gir deg skreddersydde styrker, utfordringer og intervjusvar!
         </p>
       </div>
 
@@ -440,7 +440,7 @@ export default function JobAnalysis({ answers, notes, onSaveNote, onNavigateToTa
             
             <h3 className="font-bold text-slate-900 text-lg">AI-analysen er låst</h3>
             <p className="text-slate-600 text-xs sm:text-sm leading-relaxed">
-              For at Gemini skal kunne gjøre en grundig og personlig match, må du fullføre de 60 påstandene i personlighetstesten din først. 
+              For at vi skal kunne gjøre en grundig og personlig match, må du fullføre de 60 påstandene i personlighetstesten din først.
             </p>
 
             <div className="bg-white p-4 border border-teal-100/20 rounded-lg text-xs space-y-2 text-slate-600">
@@ -657,7 +657,7 @@ export default function JobAnalysis({ answers, notes, onSaveNote, onNavigateToTa
 
               <div className="space-y-2 animate-fade-in">
                 <h3 className="text-slate-900 font-bold text-lg">
-                  Gemini analyserer jobbmatchen...
+                  Vi analyserer jobbmatchen...
                 </h3>
                 <p className="text-teal-700 font-medium text-xs sm:text-sm bg-teal-50 border border-teal-100/30 py-2 px-3 rounded-lg max-w-xs mx-auto">
                   {loadingSteps[loadingStep]}
@@ -684,7 +684,7 @@ export default function JobAnalysis({ answers, notes, onSaveNote, onNavigateToTa
                       Analyse for: <span className="text-teal-800">{jobTitle}</span>
                     </h4>
                     <p className="text-slate-500 text-xs">
-                      Suksessfullt generert av Gemini AI
+                      Analysen er klar
                     </p>
                   </div>
                 </div>
@@ -890,7 +890,7 @@ export default function JobAnalysis({ answers, notes, onSaveNote, onNavigateToTa
                       Anbefalte STAR-historier for denne stillingen
                     </h4>
                     <p className="text-slate-500 text-xs">
-                      Gemini AI anbefaler at du forbereder spesifikke eksempler på disse områdene. De er også automatisk lagt inn i dine refleksjonsnotater:
+                      Vi anbefaler at du forbereder spesifikke eksempler på disse områdene. De er også automatisk lagt inn i dine refleksjonsnotater:
                     </p>
 
                     <div className="grid gap-4">

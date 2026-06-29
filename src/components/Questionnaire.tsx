@@ -408,7 +408,7 @@ export default function Questionnaire({ answers, onAnswer, onComplete }: Questio
                 Trinn 3: Stillingsmatch (valgfritt)
               </h2>
               <p className="text-slate-500 text-sm mt-1 leading-relaxed">
-                Knytt testen til en konkret stilling du forbereder deg til. Gemini AI vil da skreddersy dine personlige intervjutips og generere en spisset debriefingrapport når testen er ferdig.
+                Knytt testen til en konkret stilling du forbereder deg til. Vi skreddersyr da dine personlige intervjutips og genererer en spisset debriefingrapport når testen er ferdig.
               </p>
             </div>
 
