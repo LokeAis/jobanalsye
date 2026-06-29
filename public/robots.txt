@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://bigfive-266007835585.europe-north1.run.app/sitemap.xml

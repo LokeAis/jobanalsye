@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <rect width="1200" height="630" fill="#f8fafc"/>
+  <rect width="1200" height="12" fill="#0f766e"/>
+  <!-- Logo mark -->
+  <g transform="translate(100,90)">
+    <rect width="96" height="96" rx="22" fill="#0f766e"/>
+    <circle cx="48" cy="48" r="27" fill="none" stroke="#ffffff" stroke-width="4.5"/>
+    <polygon points="48,27 57,57 48,48 39,57" fill="#ffffff"/>
+    <circle cx="48" cy="48" r="3.7" fill="#0f766e"/>
+  </g>
+  <text x="216" y="138" font-family="Segoe UI, Arial, sans-serif" font-size="34" font-weight="700" fill="#0f172a">Big Five Forberedelse</text>
+  <text x="216" y="178" font-family="Segoe UI, Arial, sans-serif" font-size="24" fill="#64748b">Refleksjonsverktøy for rekruttering</text>
+  <!-- Headline -->
+  <text x="100" y="330" font-family="Segoe UI, Arial, sans-serif" font-size="76" font-weight="800" fill="#0f172a">Big Five</text>
+  <text x="100" y="420" font-family="Segoe UI, Arial, sans-serif" font-size="76" font-weight="800" fill="#0f766e">Rekrutteringstentamen</text>
+  <text x="100" y="492" font-family="Segoe UI, Arial, sans-serif" font-size="30" fill="#475569">Din realistiske generalprøve før personlighetstesten</text>
+  <!-- Tags -->
+  <g font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="600">
+    <rect x="100" y="528" width="150" height="44" rx="22" fill="#ccfbf1"/>
+    <text x="175" y="557" fill="#0f766e" text-anchor="middle">MAP-test</text>
+    <rect x="266" y="528" width="130" height="44" rx="22" fill="#ccfbf1"/>
+    <text x="331" y="557" fill="#0f766e" text-anchor="middle">OPQ32</text>
+    <rect x="412" y="528" width="200" height="44" rx="22" fill="#fef3c7"/>
+    <text x="512" y="557" fill="#92400e" text-anchor="middle">AI-jobbanalyse</text>
+  </g>
+</svg>
