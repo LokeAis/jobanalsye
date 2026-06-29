@@ -1,0 +1,6 @@
+{
+  "name": "Big Five Forberedelse",
+  "description": "Et refleksjonsverktøy og forberedelsesapp for jobbkandidater som skal ta en personlighetskartlegging.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
