@@ -1,7 +1,16 @@
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
-export const exportBriefingToPdf = async (elementId: string, customFilename?: string): Promise<boolean> => {
+interface PdfExportOptions {
+  /** When true, stamp a subtle "gratisversjon" footer on every page. */
+  watermark?: boolean;
+}
+
+export const exportBriefingToPdf = async (
+  elementId: string,
+  customFilename?: string,
+  options: PdfExportOptions = {}
+): Promise<boolean> => {
   const element = document.getElementById(elementId);
   if (!element) {
     console.error("Target element not found in DOM:", elementId);
@@ -83,6 +92,22 @@ export const exportBriefingToPdf = async (elementId: string, customFilename?: st
       pdf.addPage();
       pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
       heightLeft -= pageHeight;
+    }
+
+    // Free version: stamp a subtle footer on every page.
+    if (options.watermark) {
+      const pageCount = pdf.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        pdf.setPage(i);
+        pdf.setFontSize(8);
+        pdf.setTextColor(160, 160, 160);
+        pdf.text(
+          'Big Five Forberedelse – gratisversjon · Oppgrader til premium for PDF uten denne teksten',
+          pageWidth / 2,
+          pageHeight - 6,
+          { align: 'center' }
+        );
+      }
     }
 
     const filename = customFilename || 'intervjubriefing.pdf';

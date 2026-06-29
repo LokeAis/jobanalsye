@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { statements, DimensionKey, dimensionsData, resolveDimensionKey } from '../data/statements';
+import { usePremium } from '../premium/PremiumContext';
 import { 
   Briefcase, 
   Sparkles, 
@@ -14,7 +15,10 @@ import {
   ChevronRight, 
   ArrowRight,
   ShieldAlert,
-  BookOpen
+  BookOpen,
+  Trash2,
+  Clock,
+  History
 } from 'lucide-react';
 // pdfExport (jspdf + html2canvas, ~heavy) is imported dynamically in
 // handleExportPdf so it's only loaded when the user actually exports a PDF.
@@ -52,7 +56,20 @@ interface AnalysisResult {
   }>;
 }
 
+interface SavedAnalysis {
+  id: string;
+  jobTitle: string;
+  jobDescription: string;
+  analysis: AnalysisResult;
+  createdAt: string;
+}
+
+const FREE_HISTORY_LIMIT = 1;
+const PREMIUM_HISTORY_LIMIT = 25;
+
 export default function JobAnalysis({ answers, notes, onSaveNote, onNavigateToTab }: JobAnalysisProps) {
+  const { isPremium } = usePremium();
+
   // 1. Check questionnaire completeness
   const totalStatementsCount = statements.length;
   const answeredCount = statements.filter(s => answers[s.id] !== undefined).length;
@@ -81,6 +98,25 @@ export default function JobAnalysis({ answers, notes, onSaveNote, onNavigateToTa
     }
     return null;
   });
+
+  // 3b. Saved-analysis history (premium can keep many; free keeps the latest one).
+  const [history, setHistory] = useState<SavedAnalysis[]>(() => {
+    const saved = localStorage.getItem('bigfive_prep_job_analyses');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      } catch (e) {
+        return [];
+      }
+    }
+    return [];
+  });
+
+  const persistHistory = (next: SavedAnalysis[]) => {
+    setHistory(next);
+    localStorage.setItem('bigfive_prep_job_analyses', JSON.stringify(next));
+  };
 
   // 4. Loading message rotator
   const [loadingStep, setLoadingStep] = useState<number>(0);
@@ -195,6 +231,17 @@ export default function JobAnalysis({ answers, notes, onSaveNote, onNavigateToTa
       setAnalysis(data);
       localStorage.setItem('bigfive_prep_job_analysis', JSON.stringify(data));
 
+      // Record in history. Premium keeps a list (capped); free keeps only the latest.
+      const entry: SavedAnalysis = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        jobTitle,
+        jobDescription,
+        analysis: data,
+        createdAt: new Date().toISOString(),
+      };
+      const limit = isPremium ? PREMIUM_HISTORY_LIMIT : FREE_HISTORY_LIMIT;
+      persistHistory([entry, ...history].slice(0, limit));
+
       // Auto pre-fill recommended STAR-story prompts ONLY where the note is empty.
       // We never overwrite the user's own text or an existing template here — the
       // results panel exposes explicit per-story "Fyll inn / Overskriv" buttons
@@ -230,6 +277,20 @@ export default function JobAnalysis({ answers, notes, onSaveNote, onNavigateToTa
   const handleClearAnalysis = () => {
     setAnalysis(null);
     localStorage.removeItem('bigfive_prep_job_analysis');
+  };
+
+  // Load a saved analysis from history as the active one.
+  const handleSelectSaved = (entry: SavedAnalysis) => {
+    setJobTitle(entry.jobTitle);
+    setJobDescription(entry.jobDescription);
+    setAnalysis(entry.analysis);
+    localStorage.setItem('bigfive_prep_job_analysis', JSON.stringify(entry.analysis));
+    window.scrollTo({ top: 0 });
+  };
+
+  // Remove a saved analysis from history.
+  const handleDeleteSaved = (id: string) => {
+    persistHistory(history.filter((h) => h.id !== id));
   };
 
   // 8. Export result as txt
@@ -291,7 +352,7 @@ export default function JobAnalysis({ answers, notes, onSaveNote, onNavigateToTa
     try {
       // Lazy-load the heavy PDF libraries only on first export.
       const { exportBriefingToPdf } = await import('../utils/pdfExport');
-      const ok = await exportBriefingToPdf('briefing-print-section', filename);
+      const ok = await exportBriefingToPdf('briefing-print-section', filename, { watermark: !isPremium });
       if (!ok) {
         alert('Kunne ikke lage PDF akkurat nå. Prøv «Skriv ut» som alternativ.');
       }
@@ -396,7 +457,65 @@ export default function JobAnalysis({ answers, notes, onSaveNote, onNavigateToTa
       ) : (
         /* 3. Fully Unlocked Feature Grid (If Completed Questionnaire) */
         <div className="print:hidden">
-          
+
+          {/* Saved analyses (premium history) */}
+          {isPremium && history.length > 0 && (
+            <div className="max-w-3xl mx-auto mb-6 bg-white border border-slate-100 rounded-xl p-4 sm:p-5 shadow-xs">
+              <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2 mb-3">
+                <History className="w-4 h-4 text-teal-600" />
+                Lagrede jobbanalyser
+                <span className="text-[10px] bg-teal-100 text-teal-800 px-1.5 py-0.5 rounded-sm font-bold">PREMIUM</span>
+              </h4>
+              <ul className="space-y-2">
+                {history.map((entry) => {
+                  const isActive = !!analysis && JSON.stringify(entry.analysis) === JSON.stringify(analysis);
+                  return (
+                    <li
+                      key={entry.id}
+                      className={`flex items-center justify-between gap-3 p-2.5 rounded-lg border text-xs ${
+                        isActive ? 'bg-teal-50/60 border-teal-200' : 'bg-slate-50/60 border-slate-100 hover:border-slate-200'
+                      }`}
+                    >
+                      <button
+                        onClick={() => handleSelectSaved(entry)}
+                        className="flex-1 text-left cursor-pointer"
+                      >
+                        <span className="font-semibold text-slate-900 block truncate">
+                          {entry.jobTitle || 'Uten tittel'}
+                        </span>
+                        <span className="text-slate-400 flex items-center gap-1 mt-0.5">
+                          <Clock className="w-3 h-3" />
+                          {new Date(entry.createdAt).toLocaleDateString('no-NO')}
+                          {isActive && <span className="text-teal-700 font-semibold ml-1">· vises nå</span>}
+                        </span>
+                      </button>
+                      <button
+                        onClick={() => handleDeleteSaved(entry.id)}
+                        title="Slett denne analysen"
+                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition cursor-pointer shrink-0"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+
+          {/* Free-tier upsell: saving multiple analyses is premium */}
+          {!isPremium && history.length > 0 && (
+            <div className="max-w-3xl mx-auto mb-6 bg-amber-50/60 border border-amber-200/70 rounded-xl p-4 flex items-start gap-3 text-xs sm:text-sm">
+              <Sparkles className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-semibold text-amber-950 block">Vil du lagre og sammenligne flere jobbanalyser?</span>
+                <span className="text-amber-900/90">
+                  Gratisversjonen beholder kun den siste. Med premium kan du lagre flere stillinger og bytte mellom dem. Aktiver i Personvern-fanen.
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* Input Panel (Form) */}
           {!analysis && !loading && (
             <div className="bg-white border border-slate-100 rounded-xl p-6 sm:p-8 shadow-xs max-w-3xl mx-auto space-y-6 print:hidden">

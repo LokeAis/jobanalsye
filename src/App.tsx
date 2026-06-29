@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { statements, DimensionKey, dimensionsData, resolveDimensionKey } from './data/statements';
+import { usePremium } from './premium/PremiumContext';
 import DisclaimerBanner from './components/DisclaimerBanner';
 import LandingPage from './components/LandingPage';
 import BigFiveOverview from './components/BigFiveOverview';
@@ -9,6 +10,7 @@ import ConsistencyReview from './components/ConsistencyReview';
 import InterviewPrep from './components/InterviewPrep';
 import NotesSection from './components/NotesSection';
 import JobAnalysis from './components/JobAnalysis';
+import InterviewSimulator from './components/InterviewSimulator';
 
 import { 
   Compass, 
@@ -22,10 +24,11 @@ import {
   Trash2, 
   Home,
   Check,
-  Sparkles
+  Sparkles,
+  MessageSquare
 } from 'lucide-react';
 
-type TabType = 'home' | 'theory' | 'questionnaire' | 'results' | 'consistency' | 'prep' | 'jobAnalysis' | 'notes' | 'privacy';
+type TabType = 'home' | 'theory' | 'questionnaire' | 'results' | 'consistency' | 'prep' | 'jobAnalysis' | 'interview' | 'notes' | 'privacy';
 
 // All localStorage keys the app owns — used for reset, export and import.
 const STORAGE_KEYS = [
@@ -36,12 +39,14 @@ const STORAGE_KEYS = [
   'bigfive_prep_job_title',
   'bigfive_prep_job_desc',
   'bigfive_prep_job_analysis',
+  'bigfive_prep_job_analyses',
   'bigfive_prep_guesses',
   'bigfive_prep_mode',
 ] as const;
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>('home');
+  const { isPremium, unlock, lock } = usePremium();
   
   // 1. Load state from localStorage on init
   const [answers, setAnswers] = useState<Record<string, number>>(() => {
@@ -238,6 +243,13 @@ export default function App() {
       icon: <Sparkles className="w-4 h-4 text-teal-600 animate-pulse" />,
       badge: <span className="text-[10px] bg-teal-100 text-teal-800 px-1 rounded-sm font-bold">AI</span>,
     },
+    {
+      key: 'interview',
+      id: 'tab-interview',
+      label: 'Intervju-simulator',
+      icon: <MessageSquare className="w-4 h-4 text-teal-600" />,
+      badge: <span className="text-[10px] bg-amber-100 text-amber-800 px-1 rounded-sm font-bold">PRO</span>,
+    },
     { key: 'notes', id: 'tab-notes', label: 'Mine Notater', icon: <BookMarked className="w-4 h-4 text-slate-400" /> },
     { key: 'privacy', id: 'tab-privacy', label: 'Personvern', icon: <ShieldCheck className="w-4 h-4 text-teal-600" /> },
   ];
@@ -404,8 +416,15 @@ export default function App() {
           />
         )}
 
+        {activeTab === 'interview' && (
+          <InterviewSimulator
+            answers={answers}
+            onNavigateToTab={navigateToTab}
+          />
+        )}
+
         {activeTab === 'notes' && (
-          <NotesSection 
+          <NotesSection
             notes={notes}
             onSaveNote={handleSaveNote}
             answers={answers}
@@ -436,6 +455,47 @@ export default function App() {
                 <p>
                   • <strong>AI-jobbanalysen (valgfri) bruker en ekstern tjeneste:</strong> Hvis du velger å kjøre AI Jobbanalyse, sendes stillingstittelen, stillingsbeskrivelsen du limer inn, og dine beregnede Big Five-skårer til vår server og videre til <strong>Google Gemini</strong> for å generere rapporten. Ikke lim inn sensitive personopplysninger i stillingsfeltene. Denne delen er helt frivillig — resten av appen fungerer fullt ut uten den.
                 </p>
+              </div>
+
+              {/* Premium status / dev toggle */}
+              <div className="border-t border-slate-150 pt-6 mb-2">
+                <h3 className="font-bold text-slate-900 text-sm sm:text-base mb-2 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-teal-600" />
+                  Premium-tilgang
+                </h3>
+                <p className="text-slate-500 text-xs sm:text-sm leading-relaxed mb-4">
+                  Premium låser opp flere lagrede jobbanalyser, intervju-simulatoren og PDF uten vannmerke.
+                  {' '}
+                  <span className="italic">Foreløpig er dette en gratis utviklertilgang uten betaling.</span>
+                </p>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <span
+                    className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border ${
+                      isPremium
+                        ? 'bg-teal-50 border-teal-200 text-teal-800'
+                        : 'bg-slate-50 border-slate-200 text-slate-500'
+                    }`}
+                  >
+                    {isPremium ? <Check className="w-3.5 h-3.5" /> : <ShieldAlert className="w-3.5 h-3.5" />}
+                    {isPremium ? 'Premium aktiv' : 'Gratisversjon'}
+                  </span>
+                  {isPremium ? (
+                    <button
+                      onClick={lock}
+                      className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 hover:border-slate-300 font-semibold px-4 py-2 rounded-lg text-xs sm:text-sm transition cursor-pointer"
+                    >
+                      Slå av premium
+                    </button>
+                  ) : (
+                    <button
+                      onClick={unlock}
+                      className="bg-teal-700 hover:bg-teal-800 text-white font-semibold px-4 py-2 rounded-lg text-xs sm:text-sm transition cursor-pointer flex items-center gap-2"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      Lås opp premium (gratis)
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Backup / Restore Section */}

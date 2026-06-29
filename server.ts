@@ -281,6 +281,87 @@ Ikke skriv noe utenfor JSON-objektet.`,
   }
 });
 
+// 1b. API: Interactive interview simulator (premium feature).
+const MAX_CHAT_MESSAGES = 40;
+const MAX_CHAT_CONTENT_LEN = 4000;
+
+app.post("/api/interview-chat", rateLimit, async (req, res) => {
+  try {
+    const { jobTitle, jobDescription, dimensionScores, messages } = req.body ?? {};
+
+    const safeJobTitle =
+      typeof jobTitle === "string" && jobTitle.trim()
+        ? jobTitle.trim().slice(0, MAX_JOB_TITLE_LEN)
+        : "en relevant stilling";
+    const safeJobDescription =
+      typeof jobDescription === "string" ? jobDescription.trim().slice(0, MAX_JOB_DESC_LEN) : "";
+
+    // Validate and clamp the conversation.
+    const rawMessages = Array.isArray(messages) ? messages.slice(-MAX_CHAT_MESSAGES) : [];
+    const contents = rawMessages
+      .filter(
+        (m: any) =>
+          m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string"
+      )
+      .map((m: any) => ({
+        role: m.role === "assistant" ? "model" : "user",
+        parts: [{ text: String(m.content).slice(0, MAX_CHAT_CONTENT_LEN) }],
+      }));
+
+    const personalitySummary = Object.entries(
+      (dimensionScores ?? {}) as Record<string, unknown>
+    )
+      .map(([key, details]) => {
+        const d = details as { score?: unknown; band?: unknown } | null;
+        const score = typeof d?.score === "number" && Number.isFinite(d.score) ? d.score : 3;
+        const band = typeof d?.band === "string" ? d.band : "Moderat";
+        return `- ${String(key).slice(0, 60)}: ${score.toFixed(1)}/5 (${band})`;
+      })
+      .join("\n");
+
+    // First turn (no prior conversation): nudge the model to open the interview.
+    if (contents.length === 0) {
+      contents.push({
+        role: "user",
+        parts: [{ text: "[Start intervjuet med en kort velkomst og ditt første spørsmål.]" }],
+      });
+    }
+
+    const ai = getGeminiClient();
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents,
+      config: {
+        systemInstruction: `Du er en erfaren, vennlig men grundig norsk rekrutterer som holder et strukturert jobbintervju med kandidaten. Du øver kandidaten foran et ekte intervju.
+
+STILLING: ${safeJobTitle}
+${safeJobDescription ? `STILLINGSBESKRIVELSE:\n${safeJobDescription}\n` : ""}
+KANDIDATENS BIG FIVE-PROFIL:
+${personalitySummary || "Ikke oppgitt."}
+
+Regler:
+- Still ETT spørsmål om gangen, og vent på svar. Hold deg til norsk.
+- Bygg videre på kandidatens svar med naturlige oppfølgingsspørsmål, slik et ekte intervju gjør.
+- Utforsk særlig trekkene der profilen har ytterpunkter (lav/høy) og hvordan de slår ut i denne rollen.
+- Vær konkret og realistisk. Be om eksempler (STAR). Unngå floskler og lange monologer.
+- Etter et godt svar kan du gi kort, konstruktiv tilbakemelding (1-2 setninger) før neste spørsmål.
+- Skriv kortfattet, som i en faktisk samtale.`,
+        temperature: 0.8,
+      },
+    });
+
+    const reply =
+      response.text?.trim() ||
+      "Beklager, jeg mistet tråden et øyeblikk. Kan du gjenta det siste svaret ditt?";
+    res.json({ reply });
+  } catch (error: any) {
+    console.error("Interview chat error:", error);
+    res.status(500).json({
+      error: "Kunne ikke fortsette intervjuet akkurat nå. Prøv igjen.",
+    });
+  }
+});
+
 // 2. Integration with Vite (for local development and production asset routing)
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
