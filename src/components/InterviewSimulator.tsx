@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { statements, DimensionKey } from '../data/statements';
-import { MessageSquare, Send, RefreshCw, Lock, ArrowRight, Bot, User, ShieldAlert } from 'lucide-react';
+import { MessageSquare, Send, RefreshCw, Lock, ArrowRight, Bot, User, ShieldAlert, Sparkles } from 'lucide-react';
 import { usePremium } from '../premium/PremiumContext';
 import PremiumLock from '../premium/PremiumLock';
 
@@ -144,8 +144,8 @@ export default function InterviewSimulator({ answers, onNavigateToTab }: Intervi
   return (
     <div className="max-w-3xl mx-auto py-6 px-4">
       <div className="mb-6">
-        <div className="inline-flex items-center gap-2 bg-teal-50 border border-teal-100/50 px-3 py-1 rounded-full text-teal-800 text-xs font-semibold mb-3">
-          <MessageSquare className="w-3.5 h-3.5 text-teal-600" />
+        <div className="inline-flex items-center gap-2 bg-amber-50 border border-amber-100 px-3 py-1 rounded-full text-amber-800 text-xs font-semibold mb-3">
+          <Sparkles className="w-3.5 h-3.5 text-amber-500" />
           <span>Premium · Intervju-simulator</span>
         </div>
         <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight mb-2">Øv på intervjuet i sanntid</h2>
@@ -238,6 +238,7 @@ export default function InterviewSimulator({ answers, onNavigateToTab }: Intervi
                 disabled={loading || !input.trim()}
                 className="bg-teal-700 hover:bg-teal-800 disabled:opacity-40 disabled:cursor-not-allowed text-white p-2.5 rounded-lg transition cursor-pointer shrink-0"
                 title="Send svar"
+                aria-label="Send svar"
               >
                 <Send className="w-5 h-5" />
               </button>
@@ -245,6 +246,7 @@ export default function InterviewSimulator({ answers, onNavigateToTab }: Intervi
                 onClick={handleRestart}
                 className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 p-2.5 rounded-lg transition cursor-pointer shrink-0"
                 title="Start på nytt"
+                aria-label="Start intervjuet på nytt"
               >
                 <RefreshCw className="w-5 h-5" />
               </button>

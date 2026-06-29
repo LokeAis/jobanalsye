@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { DimensionKey, dimensionsData, statements } from '../data/statements';
 import { usePremium } from '../premium/PremiumContext';
+import { useFeedback } from '../ui/Feedback';
 import { Save, Printer, Download, BookOpen, Layers, CheckCircle, RefreshCw } from 'lucide-react';
 // pdfExport (jspdf + html2canvas) is imported dynamically in handleExportPdf so
 // the heavy libraries load only when the user actually exports a PDF.
@@ -13,6 +14,7 @@ interface NotesSectionProps {
 
 export default function NotesSection({ notes, onSaveNote, answers }: NotesSectionProps) {
   const { isPremium } = usePremium();
+  const { toast } = useFeedback();
   const [activeDimKey, setActiveDimKey] = useState<DimensionKey>('planmessighet');
   const [saveStatus, setSaveStatus] = useState<string>('Lagret automatisk');
   const [isExportingPdf, setIsExportingPdf] = useState<boolean>(false);
@@ -97,11 +99,11 @@ export default function NotesSection({ notes, onSaveNote, answers }: NotesSectio
       const { exportBriefingToPdf } = await import('../utils/pdfExport');
       const ok = await exportBriefingToPdf('briefing-print-section', filename, { watermark: !isPremium });
       if (!ok) {
-        alert('Kunne ikke lage PDF akkurat nå. Prøv «Skriv ut» som alternativ.');
+        toast('Kunne ikke lage PDF akkurat nå. Prøv «Skriv ut» som alternativ.', 'error');
       }
     } catch (e) {
       console.error('PDF export failed to load/run:', e);
-      alert('Kunne ikke lage PDF akkurat nå. Prøv «Skriv ut» som alternativ.');
+      toast('Kunne ikke lage PDF akkurat nå. Prøv «Skriv ut» som alternativ.', 'error');
     } finally {
       setIsExportingPdf(false);
     }

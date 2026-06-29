@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { statements, DimensionKey, dimensionsData, resolveDimensionKey } from '../data/statements';
 import { usePremium } from '../premium/PremiumContext';
+import { useFeedback } from '../ui/Feedback';
 import { 
   Briefcase, 
   Sparkles, 
@@ -69,6 +70,7 @@ const PREMIUM_HISTORY_LIMIT = 25;
 
 export default function JobAnalysis({ answers, notes, onSaveNote, onNavigateToTab }: JobAnalysisProps) {
   const { isPremium } = usePremium();
+  const { toast } = useFeedback();
 
   // 1. Check questionnaire completeness
   const totalStatementsCount = statements.length;
@@ -354,11 +356,11 @@ export default function JobAnalysis({ answers, notes, onSaveNote, onNavigateToTa
       const { exportBriefingToPdf } = await import('../utils/pdfExport');
       const ok = await exportBriefingToPdf('briefing-print-section', filename, { watermark: !isPremium });
       if (!ok) {
-        alert('Kunne ikke lage PDF akkurat nå. Prøv «Skriv ut» som alternativ.');
+        toast('Kunne ikke lage PDF akkurat nå. Prøv «Skriv ut» som alternativ.', 'error');
       }
     } catch (e) {
       console.error('PDF export failed to load/run:', e);
-      alert('Kunne ikke lage PDF akkurat nå. Prøv «Skriv ut» som alternativ.');
+      toast('Kunne ikke lage PDF akkurat nå. Prøv «Skriv ut» som alternativ.', 'error');
     } finally {
       setIsExportingPdf(false);
     }
@@ -492,6 +494,7 @@ export default function JobAnalysis({ answers, notes, onSaveNote, onNavigateToTa
                       <button
                         onClick={() => handleDeleteSaved(entry.id)}
                         title="Slett denne analysen"
+                        aria-label={`Slett lagret analyse: ${entry.jobTitle || 'uten tittel'}`}
                         className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition cursor-pointer shrink-0"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -893,7 +896,7 @@ export default function JobAnalysis({ answers, notes, onSaveNote, onNavigateToTa
                                   onClick={() => {
                                     const textToFill = `💡 AI-FORSLAG FOR FORBEREDELSE:\nForbered en STAR-historie om:\n"${story.prompt}"\n\n[Skriv ditt eksempel her...]`;
                                     onSaveNote(dimKey, 'workExample', textToFill);
-                                    alert(`Prompt lagt inn i refleksjonsnotatene for ${dimName}!`);
+                                    toast(`Lagt inn i Mine Notater for ${dimName}.`, 'success');
                                   }}
                                   className="text-xs text-indigo-700 hover:text-indigo-900 font-semibold cursor-pointer"
                                 >

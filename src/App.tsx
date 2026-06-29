@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { statements, DimensionKey, dimensionsData, resolveDimensionKey } from './data/statements';
 import { usePremium } from './premium/PremiumContext';
+import { useFeedback } from './ui/Feedback';
 import DisclaimerBanner from './components/DisclaimerBanner';
 import LandingPage from './components/LandingPage';
 import BigFiveOverview from './components/BigFiveOverview';
@@ -47,6 +48,7 @@ const STORAGE_KEYS = [
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>('home');
   const { isPremium, unlock, lock } = usePremium();
+  const { toast, confirm } = useFeedback();
   
   // 1. Load state from localStorage on init
   const [answers, setAnswers] = useState<Record<string, number>>(() => {
@@ -140,7 +142,7 @@ export default function App() {
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       try {
         const parsed = JSON.parse(String(reader.result));
         const data = parsed?.data;
@@ -157,23 +159,24 @@ export default function App() {
           throw new Error('Ingen gjenkjennelige data');
         }
 
-        if (
-          !window.confirm(
-            'Dette overskriver alle nåværende svar og notater i denne nettleseren med innholdet fra sikkerhetskopien. Vil du fortsette?'
-          )
-        ) {
-          return;
-        }
+        const ok = await confirm({
+          title: 'Gjenopprette sikkerhetskopi?',
+          message:
+            'Dette overskriver alle nåværende svar og notater i denne nettleseren med innholdet fra sikkerhetskopien.',
+          confirmLabel: 'Gjenopprett',
+          danger: true,
+        });
+        if (!ok) return;
 
         // Clear current data first, then write the backup's keys.
         STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
         importableKeys.forEach((key) => localStorage.setItem(key, data[key]));
 
-        alert('Sikkerhetskopien er gjenopprettet. Siden lastes på nytt.');
-        window.location.reload();
+        toast('Sikkerhetskopien er gjenopprettet. Laster siden på nytt …', 'success');
+        setTimeout(() => window.location.reload(), 700);
       } catch (e) {
         console.error('Import failed:', e);
-        alert('Kunne ikke lese filen. Sjekk at det er en gyldig Big Five-sikkerhetskopi (.json).');
+        toast('Kunne ikke lese filen. Sjekk at det er en gyldig Big Five-sikkerhetskopi (.json).', 'error');
       }
     };
     reader.readAsText(file);
@@ -197,16 +200,18 @@ export default function App() {
     key: TabType;
     id: string;
     label: string;
+    shortLabel?: string;
     icon: React.ReactNode;
     badge?: React.ReactNode;
     activeClass?: string;
   }[] = [
     { key: 'home', id: 'tab-home', label: 'Start', icon: <Home className="w-4 h-4 text-slate-400" /> },
-    { key: 'theory', id: 'tab-theory', label: 'Big Five-oversikt', icon: <BookOpen className="w-4 h-4 text-slate-400" /> },
+    { key: 'theory', id: 'tab-theory', label: 'Big Five-oversikt', shortLabel: 'Oversikt', icon: <BookOpen className="w-4 h-4 text-slate-400" /> },
     {
       key: 'questionnaire',
       id: 'tab-questionnaire',
       label: 'Spørreskjema',
+      shortLabel: 'Test',
       icon: <ClipboardList className="w-4 h-4 text-slate-400" />,
       badge: answeredCount > 0 ? (
         <span className="ml-1 bg-teal-100 text-teal-900 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
@@ -218,6 +223,7 @@ export default function App() {
       key: 'consistency',
       id: 'tab-consistency',
       label: 'Tentamensrapport (Debrief)',
+      shortLabel: 'Debrief',
       icon: <ShieldCheck className="w-4 h-4 text-slate-400" />,
       activeClass: 'bg-teal-700 text-white border border-teal-700 shadow-xs',
       badge: lockBadge,
@@ -226,6 +232,7 @@ export default function App() {
       key: 'results',
       id: 'tab-results',
       label: 'Detaljert Profil',
+      shortLabel: 'Profil',
       icon: <FileText className="w-4 h-4 text-slate-400" />,
       badge: lockBadge,
     },
@@ -233,6 +240,7 @@ export default function App() {
       key: 'prep',
       id: 'tab-prep',
       label: 'Intervjuforberedelse',
+      shortLabel: 'Forberedelse',
       icon: <HelpCircle className="w-4 h-4 text-slate-400" />,
       badge: lockBadge,
     },
@@ -240,6 +248,7 @@ export default function App() {
       key: 'jobAnalysis',
       id: 'tab-job-analysis',
       label: 'AI Jobbanalyse',
+      shortLabel: 'Jobbanalyse',
       icon: <Sparkles className="w-4 h-4 text-teal-600 animate-pulse" />,
       badge: <span className="text-[10px] bg-teal-100 text-teal-800 px-1 rounded-sm font-bold">AI</span>,
     },
@@ -247,10 +256,11 @@ export default function App() {
       key: 'interview',
       id: 'tab-interview',
       label: 'Intervju-simulator',
+      shortLabel: 'Simulator',
       icon: <MessageSquare className="w-4 h-4 text-teal-600" />,
       badge: <span className="text-[10px] bg-amber-100 text-amber-800 px-1 rounded-sm font-bold">PRO</span>,
     },
-    { key: 'notes', id: 'tab-notes', label: 'Mine Notater', icon: <BookMarked className="w-4 h-4 text-slate-400" /> },
+    { key: 'notes', id: 'tab-notes', label: 'Mine Notater', shortLabel: 'Notater', icon: <BookMarked className="w-4 h-4 text-slate-400" /> },
     { key: 'privacy', id: 'tab-privacy', label: 'Personvern', icon: <ShieldCheck className="w-4 h-4 text-teal-600" /> },
   ];
 
@@ -317,7 +327,11 @@ export default function App() {
 
         {/* Tab Selection Row (Responsive horizontal scroll) */}
         <div className="bg-slate-50 border-t border-slate-200/50">
-          <div className="max-w-6xl mx-auto px-2 overflow-x-auto scrollbar-none">
+          <div className="relative max-w-6xl mx-auto">
+            {/* Edge fades hint that the strip scrolls horizontally on small screens */}
+            <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-6 bg-gradient-to-r from-slate-50 to-transparent z-10 sm:hidden" />
+            <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-6 bg-gradient-to-l from-slate-50 to-transparent z-10 sm:hidden" />
+            <div className="px-2 overflow-x-auto scrollbar-none">
             <nav
               role="tablist"
               aria-label="Seksjoner"
@@ -342,12 +356,20 @@ export default function App() {
                     }`}
                   >
                     {tab.icon}
-                    <span>{tab.label}</span>
+                    {tab.shortLabel ? (
+                      <>
+                        <span className="sm:hidden">{tab.shortLabel}</span>
+                        <span className="hidden sm:inline">{tab.label}</span>
+                      </>
+                    ) : (
+                      <span>{tab.label}</span>
+                    )}
                     {tab.badge}
                   </button>
                 );
               })}
             </nav>
+            </div>
           </div>
         </div>
       </header>
@@ -460,7 +482,7 @@ export default function App() {
               {/* Premium status / dev toggle */}
               <div className="border-t border-slate-150 pt-6 mb-2">
                 <h3 className="font-bold text-slate-900 text-sm sm:text-base mb-2 flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-teal-600" />
+                  <Sparkles className="w-4 h-4 text-amber-500" />
                   Premium-tilgang
                 </h3>
                 <p className="text-slate-500 text-xs sm:text-sm leading-relaxed mb-4">
@@ -472,7 +494,7 @@ export default function App() {
                   <span
                     className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border ${
                       isPremium
-                        ? 'bg-teal-50 border-teal-200 text-teal-800'
+                        ? 'bg-amber-50 border-amber-200 text-amber-800'
                         : 'bg-slate-50 border-slate-200 text-slate-500'
                     }`}
                   >
@@ -489,7 +511,7 @@ export default function App() {
                   ) : (
                     <button
                       onClick={unlock}
-                      className="bg-teal-700 hover:bg-teal-800 text-white font-semibold px-4 py-2 rounded-lg text-xs sm:text-sm transition cursor-pointer flex items-center gap-2"
+                      className="bg-amber-500 hover:bg-amber-600 text-white font-semibold px-4 py-2 rounded-lg text-xs sm:text-sm transition cursor-pointer flex items-center gap-2"
                     >
                       <Sparkles className="w-4 h-4" />
                       Lås opp premium (gratis)

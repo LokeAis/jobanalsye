@@ -47,7 +47,7 @@ export default function PremiumLock({ title, description, benefits }: PremiumLoc
         <div className="space-y-2 pt-1">
           <button
             onClick={unlock}
-            className="w-full bg-teal-700 hover:bg-teal-800 text-white font-semibold py-2.5 px-4 rounded-lg transition shadow-xs cursor-pointer flex items-center justify-center gap-2"
+            className="w-full bg-amber-500 hover:bg-amber-600 text-white font-semibold py-2.5 px-4 rounded-lg transition shadow-xs cursor-pointer flex items-center justify-center gap-2"
           >
             <Sparkles className="w-4 h-4" />
             Lås opp premium
