@@ -363,9 +363,10 @@ export default function App() {
         {/* Tab Selection Row (Responsive horizontal scroll) */}
         <div className="bg-slate-50 border-t border-slate-200/50">
           <div className="relative max-w-6xl mx-auto">
-            {/* Edge fades hint that the strip scrolls horizontally on small screens */}
-            <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-6 bg-gradient-to-r from-slate-50 to-transparent z-10 sm:hidden" />
-            <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-6 bg-gradient-to-l from-slate-50 to-transparent z-10 sm:hidden" />
+            {/* Edge fades hint that the strip scrolls horizontally (also on desktop,
+                where 11 tabs overflow the max-w-6xl container). */}
+            <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-slate-50 to-transparent z-10" />
+            <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-slate-50 to-transparent z-10" />
             <div className="px-2 overflow-x-auto scrollbar-none">
             <nav
               role="tablist"
