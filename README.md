@@ -39,7 +39,7 @@ npm start       # kjører dist/server.cjs (krever GEMINI_API_KEY i miljøet)
 
 AI-funksjonene (jobbanalyse + intervju-simulator) krever innlogging og koster **klipp** («AI-klippekort»): hver jobbanalyse = 1 klipp, hvert øvingsintervju = 1 klipp. Test, profil og notater er fortsatt gratis og 100 % lokale. Klippsaldoen lagres server-side i Firestore så den ikke kan forfalskes i nettleseren. Betaling (Stripe) kommer i Fase 2 — foreløpig fylles klipp på manuelt.
 
-**Engangsoppsett i Firebase:**
+**Engangsoppsett i Firebase** (detaljert steg-for-steg: [docs/FIREBASE_SETUP.md](docs/FIREBASE_SETUP.md)):
 1. Opprett et prosjekt på https://console.firebase.google.com
 2. **Authentication** → slå på **Google** som sign-in-metode. Legg til appens domene under «Authorized domains».
 3. **Firestore Database** → opprett (production mode). Appen bruker collection `users/{uid}` med feltet `credits`.
