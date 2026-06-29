@@ -122,11 +122,37 @@ export default function Questionnaire({ answers, onAnswer, onComplete }: Questio
     }
   };
 
+  // Keyboard navigation for the Likert radiogroup (WAI-ARIA radio pattern:
+  // arrows move and select, Home/End jump to ends).
+  const handleLikertKey = (e: React.KeyboardEvent, statementId: string, currentAnswer: number | undefined) => {
+    let next: number | null = null;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next = currentAnswer ? Math.min(5, currentAnswer + 1) : 1;
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') next = currentAnswer ? Math.max(1, currentAnswer - 1) : 5;
+    else if (e.key === 'Home') next = 1;
+    else if (e.key === 'End') next = 5;
+    else return;
+    e.preventDefault();
+    onAnswer(statementId, next);
+    requestAnimationFrame(() => document.getElementById(`opt-${statementId}-${next}`)?.focus());
+  };
+
   const handleGuessChange = (key: DimensionKey, value: number) => {
     setGuesses(prev => ({
       ...prev,
       [key]: value
     }));
+  };
+
+  const handleGuessKey = (e: React.KeyboardEvent, key: DimensionKey, current: number) => {
+    let next: number | null = null;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next = Math.min(5, current + 1);
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') next = Math.max(1, current - 1);
+    else if (e.key === 'Home') next = 1;
+    else if (e.key === 'End') next = 5;
+    else return;
+    e.preventDefault();
+    handleGuessChange(key, next);
+    requestAnimationFrame(() => document.getElementById(`guess-${key}-${next}`)?.focus());
   };
 
   const handleConfirmOnboarding = () => {
@@ -311,15 +337,27 @@ export default function Questionnaire({ answers, onAnswer, onComplete }: Questio
                     </div>
 
                     {/* Button Group for 1-5 selection */}
-                    <div className="grid grid-cols-5 gap-2">
+                    <div
+                      role="radiogroup"
+                      aria-label={`Ditt estimat for ${dim.name}`}
+                      onKeyDown={(e) => handleGuessKey(e, dim.key, val)}
+                      className="grid grid-cols-5 gap-2"
+                    >
                       {[1, 2, 3, 4, 5].map((num) => {
                         const isSelected = val === num;
+                        const label =
+                          num === 1 ? 'Meget lav' : num === 2 ? 'Lav' : num === 3 ? 'Gjennomsnitt' : num === 4 ? 'Høy' : 'Meget høy';
                         return (
                           <button
                             key={num}
+                            id={`guess-${dim.key}-${num}`}
                             type="button"
+                            role="radio"
+                            aria-checked={isSelected}
+                            aria-label={`${num} – ${label}`}
+                            tabIndex={isSelected ? 0 : -1}
                             onClick={() => handleGuessChange(dim.key, num)}
-                            className={`py-2 px-1 rounded-lg border text-center text-xs sm:text-sm font-semibold transition cursor-pointer select-none ${
+                            className={`py-2 px-1 rounded-lg border text-center text-xs sm:text-sm font-semibold transition cursor-pointer select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-1 ${
                               isSelected
                                 ? 'bg-indigo-700 border-indigo-700 text-white shadow-xs'
                                 : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-700'
@@ -327,10 +365,7 @@ export default function Questionnaire({ answers, onAnswer, onComplete }: Questio
                           >
                             <span>{num}</span>
                             <span className="hidden xs:block text-[9px] font-normal opacity-90 mt-0.5">
-                              {num === 1 ? 'Meget lav' : 
-                               num === 2 ? 'Lav' : 
-                               num === 3 ? 'Gjennomsnitt' : 
-                               num === 4 ? 'Høy' : 'Meget høy'}
+                              {label}
                             </span>
                           </button>
                         );
@@ -535,7 +570,7 @@ export default function Questionnaire({ answers, onAnswer, onComplete }: Questio
                   <span className="text-xs font-semibold text-slate-400 shrink-0 w-6 h-6 rounded-full bg-slate-50 flex items-center justify-center border border-slate-100 mt-0.5">
                     {globalIndex}
                   </span>
-                  <p className="text-slate-900 font-medium text-sm sm:text-base leading-relaxed">
+                  <p id={`q-label-${st.id}`} className="text-slate-900 font-medium text-sm sm:text-base leading-relaxed">
                     {st.tekst}
                   </p>
                 </div>
@@ -558,15 +593,27 @@ export default function Questionnaire({ answers, onAnswer, onComplete }: Questio
               </div>
 
               {/* Likert Scale Container */}
-              <div className="grid grid-cols-5 gap-1.5 sm:gap-4 mt-2">
+              <div
+                role="radiogroup"
+                aria-labelledby={`q-label-${st.id}`}
+                onKeyDown={(e) => handleLikertKey(e, st.id, currentAnswer)}
+                className="grid grid-cols-5 gap-1.5 sm:gap-4 mt-2"
+              >
                 {optionLabels.map((opt) => {
                   const isSelected = currentAnswer === opt.value;
+                  // Roving tabindex: the checked option is the single tab stop;
+                  // if nothing is selected yet, the first option is reachable.
+                  const tabbable = currentAnswer !== undefined ? isSelected : opt.value === 1;
                   return (
                     <button
                       key={opt.value}
                       id={`opt-${st.id}-${opt.value}`}
+                      role="radio"
+                      aria-checked={isSelected}
+                      aria-label={`${opt.value} – ${opt.label}`}
+                      tabIndex={tabbable ? 0 : -1}
                       onClick={() => onAnswer(st.id, opt.value)}
-                      className={`flex flex-col items-center justify-between py-2.5 px-1 rounded-lg border text-center transition cursor-pointer select-none ${
+                      className={`flex flex-col items-center justify-between py-2.5 px-1 rounded-lg border text-center transition cursor-pointer select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-1 ${
                         isSelected
                           ? 'bg-teal-700 border-teal-700 text-white shadow-xs'
                           : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-300'
@@ -574,10 +621,7 @@ export default function Questionnaire({ answers, onAnswer, onComplete }: Questio
                     >
                       <span className="text-sm font-bold sm:text-base">{opt.value}</span>
                       <span className="text-[10px] sm:text-[11px] leading-tight mt-1 hidden xs:block font-medium opacity-90">
-                        {opt.value === 1 ? 'Helt uenig' : 
-                         opt.value === 2 ? 'Litt uenig' : 
-                         opt.value === 3 ? 'Verken eller' : 
-                         opt.value === 4 ? 'Litt enig' : 'Helt enig'}
+                        {opt.label}
                       </span>
                     </button>
                   );
