@@ -11,7 +11,7 @@ import { getFirestore, FieldValue } from "firebase-admin/firestore";
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 // Behind Cloud Run / proxy we need the real client IP for rate limiting.
 app.set("trust proxy", 1);

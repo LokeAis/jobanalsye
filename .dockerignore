@@ -1,0 +1,16 @@
+node_modules
+dist
+build
+coverage
+.git
+.gitignore
+.gitattributes
+*.log
+.DS_Store
+# Secrets skal ALDRI inn i imaget. .env.production (offentlig) er bevisst utelatt
+# her slik at den IKKE ignoreres — den trengs i build-konteksten for Vite.
+.env
+.env.local
+.env.development
+docs
+README.md
