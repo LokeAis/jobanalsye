@@ -25,6 +25,8 @@ export default function InterviewSimulator({ answers, onNavigateToTab }: Intervi
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [started, setStarted] = useState(false);
+  const [session, setSession] = useState<string | null>(null);
+  const [turnsLeft, setTurnsLeft] = useState<number | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -50,7 +52,7 @@ export default function InterviewSimulator({ answers, onNavigateToTab }: Intervi
     return result;
   };
 
-  const sendTurn = async (nextMessages: ChatMessage[]) => {
+  const sendTurn = async (nextMessages: ChatMessage[], sessionToken: string | null) => {
     setLoading(true);
     setError(null);
 
@@ -65,6 +67,7 @@ export default function InterviewSimulator({ answers, onNavigateToTab }: Intervi
           jobDescription: localStorage.getItem('bigfive_prep_job_desc') || '',
           dimensionScores: getDimensionScores(),
           messages: nextMessages,
+          session: sessionToken,
         }),
         signal: controller.signal,
       });
@@ -72,9 +75,11 @@ export default function InterviewSimulator({ answers, onNavigateToTab }: Intervi
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || 'Serveren returnerte en feil.');
 
-      // A new session (no prior messages) costs 1 credit — refresh the balance.
-      if (nextMessages.length === 0) refreshCredits();
+      // Starting a new session (no token yet) costs 1 credit — refresh balance.
+      if (!sessionToken) refreshCredits();
 
+      setSession(data.session ?? null);
+      setTurnsLeft(typeof data.turnsLeft === 'number' ? data.turnsLeft : null);
       setMessages([...nextMessages, { role: 'assistant', content: data.reply }]);
     } catch (err: any) {
       setError(typeof err?.message === 'string' && err.message.trim() ? err.message : 'Noe gikk galt. Prøv igjen.');
@@ -87,14 +92,16 @@ export default function InterviewSimulator({ answers, onNavigateToTab }: Intervi
   const handleStart = () => {
     setStarted(true);
     setMessages([]);
-    sendTurn([]);
+    setSession(null);
+    setTurnsLeft(null);
+    sendTurn([], null);
   };
 
   const handleSend = () => {
     const text = input.trim();
-    if (!text || loading) return;
+    if (!text || loading || (turnsLeft !== null && turnsLeft <= 0)) return;
     setInput('');
-    sendTurn([...messages, { role: 'user', content: text }]);
+    sendTurn([...messages, { role: 'user', content: text }], session);
   };
 
   const handleRestart = () => {
@@ -102,7 +109,11 @@ export default function InterviewSimulator({ answers, onNavigateToTab }: Intervi
     setStarted(false);
     setError(null);
     setInput('');
+    setSession(null);
+    setTurnsLeft(null);
   };
+
+  const sessionEnded = turnsLeft !== null && turnsLeft <= 0;
 
   // Gate 1: must be logged in (when auth is configured).
   if (configured && !user) {
@@ -250,6 +261,17 @@ export default function InterviewSimulator({ answers, onNavigateToTab }: Intervi
 
           {/* Composer */}
           <div className="border-t border-slate-100 p-3 sm:p-4">
+            {sessionEnded && (
+              <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs sm:text-sm text-amber-900 flex items-center justify-between gap-3">
+                <span>Denne intervjuøkten er ferdig. Start en ny for å fortsette (1 klipp).</span>
+                <button
+                  onClick={handleStart}
+                  className="shrink-0 bg-teal-700 hover:bg-teal-800 text-white font-semibold px-3 py-1.5 rounded-lg transition cursor-pointer"
+                >
+                  Nytt intervju
+                </button>
+              </div>
+            )}
             <div className="flex items-end gap-2">
               <textarea
                 value={input}
@@ -261,13 +283,13 @@ export default function InterviewSimulator({ answers, onNavigateToTab }: Intervi
                   }
                 }}
                 rows={1}
-                placeholder="Skriv svaret ditt..."
-                disabled={loading}
-                className="flex-1 resize-none border border-slate-200 rounded-lg p-2.5 text-sm focus:outline-hidden focus:border-teal-600 focus:ring-1 focus:ring-teal-600 max-h-32"
+                placeholder={sessionEnded ? 'Økten er ferdig' : 'Skriv svaret ditt...'}
+                disabled={loading || sessionEnded}
+                className="flex-1 resize-none border border-slate-200 rounded-lg p-2.5 text-sm focus:outline-hidden focus:border-teal-600 focus:ring-1 focus:ring-teal-600 max-h-32 disabled:bg-slate-50 disabled:text-slate-400"
               />
               <button
                 onClick={handleSend}
-                disabled={loading || !input.trim()}
+                disabled={loading || !input.trim() || sessionEnded}
                 className="bg-teal-700 hover:bg-teal-800 disabled:opacity-40 disabled:cursor-not-allowed text-white p-2.5 rounded-lg transition cursor-pointer shrink-0"
                 title="Send svar"
                 aria-label="Send svar"

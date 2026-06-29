@@ -1,5 +1,6 @@
 import express from "express";
 import path from "path";
+import crypto from "crypto";
 import dotenv from "dotenv";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
@@ -421,24 +422,70 @@ Ikke skriv noe utenfor JSON-objektet.`,
   }
 });
 
-// 1b. API: Interactive interview simulator (premium feature).
+// 1b. API: Interactive interview simulator (1 credit per session).
 const MAX_CHAT_MESSAGES = 40;
 const MAX_CHAT_CONTENT_LEN = 4000;
+const MAX_INTERVIEW_TURNS = 24; // ~12 question/answer pairs per paid session
+
+// Stateless, server-signed interview session. The session token carries the
+// remaining turn budget and is HMAC-signed so the client can't forge it or
+// reset the count — this prevents bypassing the per-session credit charge by
+// sending a crafted message history. SESSION_SECRET should be set in prod; if
+// absent we use a per-boot random secret (sessions reset on restart).
+const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString("hex");
+
+interface SessionPayload {
+  uid: string;
+  turnsLeft: number;
+  iat: number;
+}
+
+function signSession(payload: SessionPayload): string {
+  const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
+  const sig = crypto.createHmac("sha256", SESSION_SECRET).update(body).digest("base64url");
+  return `${body}.${sig}`;
+}
+
+function verifySession(token: unknown): SessionPayload | null {
+  if (typeof token !== "string" || !token.includes(".")) return null;
+  const [body, sig] = token.split(".");
+  const expected = crypto.createHmac("sha256", SESSION_SECRET).update(body).digest("base64url");
+  // Constant-time comparison.
+  const a = Buffer.from(sig);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+  try {
+    return JSON.parse(Buffer.from(body, "base64url").toString()) as SessionPayload;
+  } catch {
+    return null;
+  }
+}
 
 app.post("/api/interview-chat", rateLimit, requireAuth, async (req: AuthedRequest, res) => {
   try {
-    const { jobTitle, jobDescription, dimensionScores, messages } = req.body ?? {};
+    const { jobTitle, jobDescription, dimensionScores, messages, session } = req.body ?? {};
 
-    // An interview costs 1 credit per session, charged on the opening turn
-    // (when the client sends no prior messages). Follow-up turns are free.
-    // NOTE (Fase 2 hardening): move to a server-issued session with a turn cap
-    // so a crafted message history can't bypass the opening charge.
-    const isSessionStart = !Array.isArray(messages) || messages.length === 0;
+    // An interview costs 1 credit per session. The session is a server-signed
+    // token carrying the remaining turn budget; a start (no token) charges a
+    // credit, follow-up turns spend the token's budget. This can't be bypassed
+    // by forging the message history.
+    const isSessionStart = !session;
+    let turnsLeft: number;
     if (isSessionStart) {
       const balance = await getOrCreateCredits(req.uid!, req.userEmail || "");
       if (balance < 1) {
         return res.status(402).json({ error: "Du har ingen klipp igjen. Kjøp flere for å starte et nytt intervju." });
       }
+      turnsLeft = MAX_INTERVIEW_TURNS;
+    } else {
+      const payload = verifySession(session);
+      if (!payload || payload.uid !== req.uid) {
+        return res.status(400).json({ error: "Ugyldig intervjuøkt. Start et nytt intervju." });
+      }
+      if (payload.turnsLeft <= 0) {
+        return res.status(409).json({ error: "Intervjuøkten er brukt opp. Start en ny (1 klipp)." });
+      }
+      turnsLeft = payload.turnsLeft;
     }
 
     const safeJobTitle =
@@ -511,7 +558,9 @@ Regler:
     if (isSessionStart) {
       remaining = await chargeOneCredit(req.uid!);
     }
-    res.json({ reply, _credits: remaining });
+    const newTurnsLeft = turnsLeft - 1;
+    const newSession = signSession({ uid: req.uid!, turnsLeft: newTurnsLeft, iat: Date.now() });
+    res.json({ reply, session: newSession, turnsLeft: newTurnsLeft, _credits: remaining });
   } catch (error: any) {
     console.error("Interview chat error:", error);
     res.status(500).json({

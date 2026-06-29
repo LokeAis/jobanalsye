@@ -233,8 +233,11 @@ export default function JobAnalysis({ answers, notes, onSaveNote, onNavigateToTa
         throw new Error(data?.error || "Serveren returnerte en feil.");
       }
 
-      setAnalysis(data);
-      localStorage.setItem('bigfive_prep_job_analysis', JSON.stringify(data));
+      // Strip the server-only credit field before storing the analysis.
+      const { _credits, ...analysisData } = data;
+
+      setAnalysis(analysisData);
+      localStorage.setItem('bigfive_prep_job_analysis', JSON.stringify(analysisData));
       refreshCredits(); // reflect the spent credit in the header
 
       // Record in history. Premium keeps a list (capped); free keeps only the latest.
@@ -242,7 +245,7 @@ export default function JobAnalysis({ answers, notes, onSaveNote, onNavigateToTa
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         jobTitle,
         jobDescription,
-        analysis: data,
+        analysis: analysisData,
         createdAt: new Date().toISOString(),
       };
       const limit = isPremium ? PREMIUM_HISTORY_LIMIT : FREE_HISTORY_LIMIT;
@@ -252,8 +255,8 @@ export default function JobAnalysis({ answers, notes, onSaveNote, onNavigateToTa
       // We never overwrite the user's own text or an existing template here — the
       // results panel exposes explicit per-story "Fyll inn / Overskriv" buttons
       // for that, so no disruptive confirm() dialogs are needed during generation.
-      if (data.suggestedStarStories && Array.isArray(data.suggestedStarStories)) {
-        data.suggestedStarStories.forEach((story: { dimension: string; prompt: string }) => {
+      if (analysisData.suggestedStarStories && Array.isArray(analysisData.suggestedStarStories)) {
+        analysisData.suggestedStarStories.forEach((story: { dimension: string; prompt: string }) => {
           const dimKey = resolveDimensionKey(story.dimension);
           if (!dimKey) return;
 
