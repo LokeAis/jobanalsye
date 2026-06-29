@@ -354,7 +354,7 @@ export default function JobAnalysis({ answers, notes, onSaveNote, onNavigateToTa
     try {
       // Lazy-load the heavy PDF libraries only on first export.
       const { exportBriefingToPdf } = await import('../utils/pdfExport');
-      const ok = await exportBriefingToPdf('briefing-print-section', filename, { watermark: !isPremium });
+      const ok = await exportBriefingToPdf(filename, { watermark: !isPremium });
       if (!ok) {
         toast('Kunne ikke lage PDF akkurat nå. Prøv «Skriv ut» som alternativ.', 'error');
       }

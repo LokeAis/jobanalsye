@@ -97,7 +97,7 @@ export default function NotesSection({ notes, onSaveNote, answers }: NotesSectio
     const filename = `intervjubriefing_${sanitizedTitle}.pdf`;
     try {
       const { exportBriefingToPdf } = await import('../utils/pdfExport');
-      const ok = await exportBriefingToPdf('briefing-print-section', filename, { watermark: !isPremium });
+      const ok = await exportBriefingToPdf(filename, { watermark: !isPremium });
       if (!ok) {
         toast('Kunne ikke lage PDF akkurat nå. Prøv «Skriv ut» som alternativ.', 'error');
       }
