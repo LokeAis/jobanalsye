@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { statements, DimensionKey, dimensionsData, resolveDimensionKey } from './data/statements';
 import { usePremium } from './premium/PremiumContext';
+import { useAuth } from './auth/AuthContext';
 import { useFeedback } from './ui/Feedback';
 import DisclaimerBanner from './components/DisclaimerBanner';
 import LandingPage from './components/LandingPage';
@@ -26,7 +27,10 @@ import {
   Home,
   Check,
   Sparkles,
-  MessageSquare
+  MessageSquare,
+  Ticket,
+  LogIn,
+  LogOut
 } from 'lucide-react';
 
 type TabType = 'home' | 'theory' | 'questionnaire' | 'results' | 'consistency' | 'prep' | 'jobAnalysis' | 'interview' | 'notes' | 'privacy';
@@ -48,6 +52,7 @@ const STORAGE_KEYS = [
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>('home');
   const { isPremium, unlock, lock } = usePremium();
+  const { configured, loading, user, credits, signIn, signOut } = useAuth();
   const { toast, confirm } = useFeedback();
   
   // 1. Load state from localStorage on init
@@ -306,8 +311,8 @@ export default function App() {
               </div>
             </button>
 
-            {/* Answer progress bubble */}
-            <div className="flex items-center gap-3">
+            {/* Answer progress + auth/credits */}
+            <div className="flex items-center gap-2 sm:gap-3">
               {answeredCount > 0 && (
                 <button
                   onClick={() => navigateToTab('questionnaire')}
@@ -319,6 +324,36 @@ export default function App() {
                   </span>
                   <span>Svart: {answeredCount} / 60</span>
                 </button>
+              )}
+
+              {configured && !loading && (
+                user ? (
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="flex items-center gap-1.5 text-xs font-bold px-2.5 py-1.5 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg"
+                      title="Dine AI-klipp"
+                    >
+                      <Ticket className="w-3.5 h-3.5" />
+                      {credits ?? '–'} klipp
+                    </span>
+                    <button
+                      onClick={() => signOut()}
+                      title={user.email || 'Logg ut'}
+                      className="hidden sm:flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 rounded-lg transition"
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                      Logg ut
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => signIn()}
+                    className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 bg-teal-700 hover:bg-teal-800 text-white rounded-lg transition"
+                  >
+                    <LogIn className="w-3.5 h-3.5" />
+                    Logg inn
+                  </button>
+                )
               )}
             </div>
 

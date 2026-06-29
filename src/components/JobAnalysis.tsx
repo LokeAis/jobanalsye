@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { statements, DimensionKey, dimensionsData, resolveDimensionKey } from '../data/statements';
 import { usePremium } from '../premium/PremiumContext';
+import { useAuth } from '../auth/AuthContext';
 import { useFeedback } from '../ui/Feedback';
 import { 
   Briefcase, 
@@ -19,7 +20,8 @@ import {
   BookOpen,
   Trash2,
   Clock,
-  History
+  History,
+  Ticket
 } from 'lucide-react';
 // pdfExport (jspdf + html2canvas, ~heavy) is imported dynamically in
 // handleExportPdf so it's only loaded when the user actually exports a PDF.
@@ -70,6 +72,7 @@ const PREMIUM_HISTORY_LIMIT = 25;
 
 export default function JobAnalysis({ answers, notes, onSaveNote, onNavigateToTab }: JobAnalysisProps) {
   const { isPremium } = usePremium();
+  const { configured, user, credits, signIn, authedFetch, refreshCredits } = useAuth();
   const { toast } = useFeedback();
 
   // 1. Check questionnaire completeness
@@ -201,7 +204,7 @@ export default function JobAnalysis({ answers, notes, onSaveNote, onNavigateToTa
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000);
       try {
-        response = await fetch('/api/analyze-job', {
+        response = await authedFetch('/api/analyze-job', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -232,6 +235,7 @@ export default function JobAnalysis({ answers, notes, onSaveNote, onNavigateToTa
 
       setAnalysis(data);
       localStorage.setItem('bigfive_prep_job_analysis', JSON.stringify(data));
+      refreshCredits(); // reflect the spent credit in the header
 
       // Record in history. Premium keeps a list (capped); free keeps only the latest.
       const entry: SavedAnalysis = {
@@ -600,18 +604,36 @@ export default function JobAnalysis({ answers, notes, onSaveNote, onNavigateToTa
               </div>
 
               <div className="pt-2">
-                <button
-                  onClick={handleRunAnalysis}
-                  disabled={!jobTitle.trim()}
-                  className={`w-full font-bold py-3 px-4 rounded-lg transition shadow-xs flex items-center justify-center gap-2 cursor-pointer ${
-                    jobTitle.trim()
-                      ? 'bg-teal-700 hover:bg-teal-800 text-white'
-                      : 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                  }`}
-                >
-                  <Sparkles className="w-5 h-5" />
-                  Analyser min profil mot stillingen med AI
-                </button>
+                {configured && !user ? (
+                  <button
+                    onClick={() => signIn()}
+                    className="w-full font-bold py-3 px-4 rounded-lg transition shadow-xs flex items-center justify-center gap-2 cursor-pointer bg-teal-700 hover:bg-teal-800 text-white"
+                  >
+                    <Sparkles className="w-5 h-5" />
+                    Logg inn for å kjøre AI-analyse (1 klipp)
+                  </button>
+                ) : configured && (credits ?? 0) < 1 ? (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-900 flex items-start gap-2">
+                    <Ticket className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-semibold block text-amber-950">Du har ingen klipp igjen</span>
+                      <span>Hver AI-jobbanalyse koster 1 klipp. Kjøp flere for å kjøre en ny analyse.</span>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleRunAnalysis}
+                    disabled={!jobTitle.trim()}
+                    className={`w-full font-bold py-3 px-4 rounded-lg transition shadow-xs flex items-center justify-center gap-2 cursor-pointer ${
+                      jobTitle.trim()
+                        ? 'bg-teal-700 hover:bg-teal-800 text-white'
+                        : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                    }`}
+                  >
+                    <Sparkles className="w-5 h-5" />
+                    Analyser min profil mot stillingen med AI {configured ? '(1 klipp)' : ''}
+                  </button>
+                )}
                 <p className="text-[11px] text-slate-400 leading-relaxed mt-2.5 flex items-start gap-1.5">
                   <ShieldAlert className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
                   <span>

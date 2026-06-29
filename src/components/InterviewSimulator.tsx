@@ -1,8 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { statements, DimensionKey } from '../data/statements';
-import { MessageSquare, Send, RefreshCw, Lock, ArrowRight, Bot, User, ShieldAlert, Sparkles } from 'lucide-react';
-import { usePremium } from '../premium/PremiumContext';
-import PremiumLock from '../premium/PremiumLock';
+import { MessageSquare, Send, RefreshCw, Lock, ArrowRight, Bot, User, ShieldAlert, Sparkles, Ticket } from 'lucide-react';
+import { useAuth } from '../auth/AuthContext';
 
 interface InterviewSimulatorProps {
   answers: Record<string, number>;
@@ -15,7 +14,7 @@ interface ChatMessage {
 }
 
 export default function InterviewSimulator({ answers, onNavigateToTab }: InterviewSimulatorProps) {
-  const { isPremium } = usePremium();
+  const { configured, user, credits, signIn, authedFetch, refreshCredits } = useAuth();
 
   const totalStatementsCount = statements.length;
   const answeredCount = statements.filter((s) => answers[s.id] !== undefined).length;
@@ -58,7 +57,7 @@ export default function InterviewSimulator({ answers, onNavigateToTab }: Intervi
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000);
     try {
-      const res = await fetch('/api/interview-chat', {
+      const res = await authedFetch('/api/interview-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -72,6 +71,9 @@ export default function InterviewSimulator({ answers, onNavigateToTab }: Intervi
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || 'Serveren returnerte en feil.');
+
+      // A new session (no prior messages) costs 1 credit — refresh the balance.
+      if (nextMessages.length === 0) refreshCredits();
 
       setMessages([...nextMessages, { role: 'assistant', content: data.reply }]);
     } catch (err: any) {
@@ -102,22 +104,52 @@ export default function InterviewSimulator({ answers, onNavigateToTab }: Intervi
     setInput('');
   };
 
-  // Gate 1: premium.
-  if (!isPremium) {
+  // Gate 1: must be logged in (when auth is configured).
+  if (configured && !user) {
     return (
-      <PremiumLock
-        title="Intervju-simulator"
-        description="Øv på et realistisk jobbintervju i sanntid. En AI-rekrutterer stiller deg oppfølgingsspørsmål basert på din Big Five-profil og stillingen du forbereder deg til."
-        benefits={[
-          'Realistiske, tilpassede intervjuspørsmål',
-          'Naturlige oppfølgingsspørsmål basert på svarene dine',
-          'Kort, konstruktiv tilbakemelding underveis',
-        ]}
-      />
+      <div className="max-w-xl mx-auto py-12 px-4">
+        <div className="bg-white border border-amber-200/70 rounded-2xl p-6 sm:p-8 shadow-xs text-center space-y-5">
+          <div className="w-14 h-14 bg-amber-50 border border-amber-100 rounded-full flex items-center justify-center text-amber-600 mx-auto">
+            <Lock className="w-6 h-6" />
+          </div>
+          <div className="space-y-2">
+            <h3 className="text-xl font-bold text-slate-900">Intervju-simulator</h3>
+            <p className="text-slate-600 text-sm leading-relaxed">
+              Øv på et realistisk jobbintervju i sanntid. En AI-rekrutterer stiller deg oppfølgingsspørsmål basert på din Big Five-profil. Logg inn for å starte — ett intervju koster 1 klipp.
+            </p>
+          </div>
+          <button
+            onClick={() => signIn()}
+            className="w-full bg-teal-700 hover:bg-teal-800 text-white font-semibold py-2.5 px-4 rounded-lg transition shadow-xs cursor-pointer flex items-center justify-center gap-2"
+          >
+            <Sparkles className="w-4 h-4" />
+            Logg inn for å øve
+          </button>
+        </div>
+      </div>
     );
   }
 
-  // Gate 2: questionnaire must be completed.
+  // Gate 2: must have at least one credit (only relevant before a session starts).
+  if (configured && !started && (credits ?? 0) < 1) {
+    return (
+      <div className="max-w-xl mx-auto py-12 px-4">
+        <div className="bg-white border border-amber-200/70 rounded-2xl p-6 sm:p-8 shadow-xs text-center space-y-5">
+          <div className="w-14 h-14 bg-amber-50 border border-amber-100 rounded-full flex items-center justify-center text-amber-600 mx-auto">
+            <Ticket className="w-6 h-6" />
+          </div>
+          <div className="space-y-2">
+            <h3 className="text-xl font-bold text-slate-900">Du har ingen klipp igjen</h3>
+            <p className="text-slate-600 text-sm leading-relaxed">
+              Et øvingsintervju koster 1 klipp. Kjøp flere klipp for å starte en ny intervjuøkt.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Gate 3: questionnaire must be completed.
   if (!isCompleted) {
     return (
       <div className="max-w-md mx-auto py-12 px-4 text-center">

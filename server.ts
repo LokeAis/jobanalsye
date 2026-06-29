@@ -3,6 +3,9 @@ import path from "path";
 import dotenv from "dotenv";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
+import { initializeApp, cert, applicationDefault, getApps } from "firebase-admin/app";
+import { getAuth } from "firebase-admin/auth";
+import { getFirestore, FieldValue } from "firebase-admin/firestore";
 
 dotenv.config();
 
@@ -75,13 +78,147 @@ function getGeminiClient(): GoogleGenAI {
   return aiClient;
 }
 
+// --- Firebase Admin (auth + Firestore credit ledger) ---
+// Credits ("klipp") are tracked server-side per user so they can't be forged
+// client-side. Lazy-init so the server still boots without Firebase configured
+// (the AI endpoints will then reject with a clear message).
+let firebaseReady = false;
+function ensureFirebase(): boolean {
+  if (firebaseReady) return true;
+  try {
+    if (getApps().length === 0) {
+      const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
+      if (raw) {
+        // Service account JSON provided as an env var (stringified).
+        const serviceAccount = JSON.parse(raw);
+        initializeApp({ credential: cert(serviceAccount) });
+      } else {
+        // On Google Cloud (Cloud Run) this picks up the runtime service account.
+        initializeApp({ credential: applicationDefault() });
+      }
+    }
+    firebaseReady = true;
+    return true;
+  } catch (e) {
+    console.error("Firebase Admin init failed:", e);
+    return false;
+  }
+}
+
+// New users start with this many free credits (lets them try one analysis).
+const STARTER_CREDITS = Number(process.env.STARTER_CREDITS ?? 1);
+
+interface AuthedRequest extends express.Request {
+  uid?: string;
+  userEmail?: string;
+}
+
+// Verify the Firebase ID token from the Authorization header.
+async function requireAuth(req: AuthedRequest, res: express.Response, next: express.NextFunction) {
+  if (!ensureFirebase()) {
+    return res.status(503).json({ error: "Innlogging er ikke konfigurert på serveren." });
+  }
+  const header = req.headers.authorization || "";
+  const token = header.startsWith("Bearer ") ? header.slice(7) : "";
+  if (!token) {
+    return res.status(401).json({ error: "Du må være innlogget." });
+  }
+  try {
+    const decoded = await getAuth().verifyIdToken(token);
+    req.uid = decoded.uid;
+    req.userEmail = decoded.email || "";
+    next();
+  } catch (e) {
+    return res.status(401).json({ error: "Ugyldig eller utløpt innlogging." });
+  }
+}
+
+// Read a user's balance, creating the doc with starter credits on first sight.
+async function getOrCreateCredits(uid: string, email: string): Promise<number> {
+  const ref = getFirestore().collection("users").doc(uid);
+  return getFirestore().runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) {
+      tx.set(ref, {
+        email,
+        credits: STARTER_CREDITS,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      return STARTER_CREDITS;
+    }
+    return (snap.data()?.credits as number) ?? 0;
+  });
+}
+
+// Atomically charge one credit; returns the new balance, or null if insufficient.
+async function chargeOneCredit(uid: string): Promise<number | null> {
+  const ref = getFirestore().collection("users").doc(uid);
+  return getFirestore().runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const credits = (snap.data()?.credits as number) ?? 0;
+    if (credits < 1) return null;
+    tx.update(ref, { credits: credits - 1, updatedAt: FieldValue.serverTimestamp() });
+    return credits - 1;
+  });
+}
+
+// Current user's balance (creates the account record on first call).
+app.get("/api/me", requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    const credits = await getOrCreateCredits(req.uid!, req.userEmail || "");
+    res.json({ email: req.userEmail, credits });
+  } catch (e) {
+    console.error("/api/me failed:", e);
+    res.status(500).json({ error: "Kunne ikke hente saldo." });
+  }
+});
+
+// Manual top-up for Fase 1 (no payment yet). Guarded by a shared admin secret;
+// will be replaced by a Stripe webhook in Fase 2.
+app.post("/api/admin/grant-credits", async (req, res) => {
+  const secret = process.env.ADMIN_TOPUP_SECRET;
+  if (!secret || req.headers["x-admin-secret"] !== secret) {
+    return res.status(403).json({ error: "Ikke autorisert." });
+  }
+  if (!ensureFirebase()) {
+    return res.status(503).json({ error: "Firebase ikke konfigurert." });
+  }
+  const { email, amount } = req.body ?? {};
+  const grant = Number(amount);
+  if (typeof email !== "string" || !email || !Number.isFinite(grant) || grant <= 0) {
+    return res.status(400).json({ error: "Oppgi gyldig e-post og antall." });
+  }
+  try {
+    const user = await getAuth().getUserByEmail(email);
+    const ref = getFirestore().collection("users").doc(user.uid);
+    const newBalance = await getFirestore().runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const current = (snap.data()?.credits as number) ?? 0;
+      const next = current + grant;
+      tx.set(ref, { email, credits: next, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      return next;
+    });
+    res.json({ email, credits: newBalance });
+  } catch (e) {
+    console.error("grant-credits failed:", e);
+    res.status(500).json({ error: "Kunne ikke legge til klipp." });
+  }
+});
+
 // 1. API: Analyze job description and profile match
-app.post("/api/analyze-job", rateLimit, async (req, res) => {
+app.post("/api/analyze-job", rateLimit, requireAuth, async (req: AuthedRequest, res) => {
   try {
     const { jobTitle, jobDescription, dimensionScores } = req.body ?? {};
 
     if (typeof jobTitle !== "string" || !jobTitle.trim()) {
       return res.status(400).json({ error: "Jobb-tittel er påkrevd." });
+    }
+
+    // Require at least one credit BEFORE calling Gemini (so we never give away a
+    // paid analysis for free). We only *charge* after a successful generation.
+    const balance = await getOrCreateCredits(req.uid!, req.userEmail || "");
+    if (balance < 1) {
+      return res.status(402).json({ error: "Du har ingen klipp igjen. Kjøp flere for å kjøre en ny analyse." });
     }
 
     // Validate and clamp free-text input before it reaches the model.
@@ -270,7 +407,10 @@ Ikke skriv noe utenfor JSON-objektet.`,
     const resultText = response.text || "{}";
     const analysisData = JSON.parse(resultText);
 
-    res.json(analysisData);
+    // Charge one credit now that we have a successful result.
+    const remaining = await chargeOneCredit(req.uid!);
+
+    res.json({ ...analysisData, _credits: remaining ?? 0 });
   } catch (error: any) {
     // Log full detail server-side; return a generic message so we don't leak
     // internal error details (or stack fragments) to the client.
@@ -285,9 +425,21 @@ Ikke skriv noe utenfor JSON-objektet.`,
 const MAX_CHAT_MESSAGES = 40;
 const MAX_CHAT_CONTENT_LEN = 4000;
 
-app.post("/api/interview-chat", rateLimit, async (req, res) => {
+app.post("/api/interview-chat", rateLimit, requireAuth, async (req: AuthedRequest, res) => {
   try {
     const { jobTitle, jobDescription, dimensionScores, messages } = req.body ?? {};
+
+    // An interview costs 1 credit per session, charged on the opening turn
+    // (when the client sends no prior messages). Follow-up turns are free.
+    // NOTE (Fase 2 hardening): move to a server-issued session with a turn cap
+    // so a crafted message history can't bypass the opening charge.
+    const isSessionStart = !Array.isArray(messages) || messages.length === 0;
+    if (isSessionStart) {
+      const balance = await getOrCreateCredits(req.uid!, req.userEmail || "");
+      if (balance < 1) {
+        return res.status(402).json({ error: "Du har ingen klipp igjen. Kjøp flere for å starte et nytt intervju." });
+      }
+    }
 
     const safeJobTitle =
       typeof jobTitle === "string" && jobTitle.trim()
@@ -353,7 +505,13 @@ Regler:
     const reply =
       response.text?.trim() ||
       "Beklager, jeg mistet tråden et øyeblikk. Kan du gjenta det siste svaret ditt?";
-    res.json({ reply });
+
+    // Charge the session credit only on a successful opening turn.
+    let remaining: number | null = null;
+    if (isSessionStart) {
+      remaining = await chargeOneCredit(req.uid!);
+    }
+    res.json({ reply, _credits: remaining });
   } catch (error: any) {
     console.error("Interview chat error:", error);
     res.status(500).json({

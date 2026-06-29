@@ -35,6 +35,28 @@ npm run build   # bygger frontend (Vite) og bundler serveren til dist/server.cjs
 npm start       # kjører dist/server.cjs (krever GEMINI_API_KEY i miljøet)
 ```
 
+## Innlogging og klippekort (Fase 1)
+
+AI-funksjonene (jobbanalyse + intervju-simulator) krever innlogging og koster **klipp** («AI-klippekort»): hver jobbanalyse = 1 klipp, hvert øvingsintervju = 1 klipp. Test, profil og notater er fortsatt gratis og 100 % lokale. Klippsaldoen lagres server-side i Firestore så den ikke kan forfalskes i nettleseren. Betaling (Stripe) kommer i Fase 2 — foreløpig fylles klipp på manuelt.
+
+**Engangsoppsett i Firebase:**
+1. Opprett et prosjekt på https://console.firebase.google.com
+2. **Authentication** → slå på **Google** som sign-in-metode. Legg til appens domene under «Authorized domains».
+3. **Firestore Database** → opprett (production mode). Appen bruker collection `users/{uid}` med feltet `credits`.
+4. **Project settings → Your apps → Web app**: kopier web-konfigen inn i `VITE_FIREBASE_*` (se [.env.example](.env.example)). Denne er ikke hemmelig.
+5. **Project settings → Service accounts → Generate new private key**: lim inn JSON-en (på én linje) i `FIREBASE_SERVICE_ACCOUNT`. Denne ER hemmelig — aldri commit den.
+6. Sett `ADMIN_TOPUP_SECRET` til en lang tilfeldig streng, og evt. `STARTER_CREDITS` (default 1).
+
+**Manuell påfylling av klipp (til Stripe er på plass):**
+```bash
+curl -X POST https://DIN-URL/api/admin/grant-credits \
+  -H "Content-Type: application/json" \
+  -H "x-admin-secret: DITT_ADMIN_TOPUP_SECRET" \
+  -d '{"email":"bruker@example.com","amount":3}'
+```
+
+Firestore-regler (anbefalt): la **kun serveren** (admin SDK) skrive til `users`-collection; klienten skal aldri kunne endre `credits` direkte.
+
 ## Deploy
 
 Appen er en Express-server som serverer den bygde frontend-en og proxyer AI-kallene. Den trenger `GEMINI_API_KEY` satt som miljøvariabel i produksjonsmiljøet (aldri sjekk den inn).
