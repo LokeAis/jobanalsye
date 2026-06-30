@@ -55,7 +55,7 @@ const STORAGE_KEYS = [
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>('home');
-  const { configured, loading, user, credits, signIn, signOut, refreshCredits } = useAuth();
+  const { configured, loading, user, credits, signIn, signOut, refreshCredits, authedFetch } = useAuth();
   const { toast, confirm } = useFeedback();
   const [showPurchase, setShowPurchase] = useState(false);
   const [purchaseConsent, setPurchaseConsent] = useState(false);
@@ -92,6 +92,17 @@ export default function App() {
   // One-time cleanup: the old premium concept left an orphan localStorage key.
   useEffect(() => {
     localStorage.removeItem('bigfive_prep_premium');
+  }, []);
+
+  // Deep link from e.g. the e-mail receipt: ?juridisk=vilkar|personvern.
+  useEffect(() => {
+    const j = new URLSearchParams(window.location.search).get('juridisk');
+    if (j === 'vilkar' || j === 'personvern') {
+      setLegalView(j);
+      const url = new URL(window.location.href);
+      url.searchParams.delete('juridisk');
+      window.history.replaceState({}, '', url.pathname + url.search);
+    }
   }, []);
 
   // 1. Load state from localStorage on init
@@ -176,6 +187,31 @@ export default function App() {
     setNotes({});
     setActiveTab('home');
     setShowResetConfirm(false);
+  };
+
+  // 3a. GDPR: delete server account (Firestore-data + Firebase Auth) + local data.
+  const handleDeleteAccount = async () => {
+    const ok = await confirm({
+      title: 'Slette konto og alle data?',
+      message:
+        'Dette sletter kontoen din, e-postadressen og klippsaldoen permanent fra serveren, og fjerner testdataene dine lokalt. Handlingen kan ikke angres. Har du ubrukte klipp du vil ha refundert, kontakt oss FØR du sletter.',
+      confirmLabel: 'Slett alt permanent',
+      cancelLabel: 'Avbryt',
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      const res = await authedFetch('/api/delete-account', { method: 'POST' });
+      if (!res.ok) throw new Error();
+      STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
+      setAnswers({});
+      setNotes({});
+      await signOut();
+      setActiveTab('home');
+      toast('Kontoen din og alle data er slettet.', 'success');
+    } catch {
+      toast('Kunne ikke slette kontoen. Prøv igjen, eller kontakt oss.', 'error');
+    }
   };
 
   // 3b. Export all local data as a JSON backup file.
@@ -676,6 +712,24 @@ export default function App() {
                   </button>
                 )}
               </div>
+
+              {configured && user && (
+                <div className="border-t border-slate-150 pt-6 mt-6">
+                  <h3 className="font-bold text-slate-900 text-sm sm:text-base mb-2">Slett konto (GDPR)</h3>
+                  <p className="text-slate-500 text-xs sm:text-sm leading-relaxed mb-3">
+                    Sletter kontoen din, e-postadressen og klippsaldoen permanent fra serveren,
+                    og fjerner testdataene dine lokalt. Kan ikke angres. Har du ubrukte klipp du
+                    vil ha refundert, kontakt oss før du sletter.
+                  </p>
+                  <button
+                    onClick={handleDeleteAccount}
+                    className="bg-white hover:bg-rose-50 text-rose-600 border border-rose-200 hover:border-rose-300 font-semibold px-4 py-2.5 rounded-lg text-xs sm:text-sm transition flex items-center gap-2 cursor-pointer"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Slett konto og alle data
+                  </button>
+                </div>
+              )}
 
             </div>
           </div>

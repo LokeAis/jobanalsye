@@ -61,7 +61,14 @@ app.post(
       const email = session.metadata?.email || session.customer_details?.email || "";
       if (uid && Number.isFinite(credits) && credits > 0 && ensureFirebase()) {
         try {
-          await grantCreditsIdempotent(event.id, uid, email, credits);
+          const granted = await grantCreditsIdempotent(event.id, uid, email, credits);
+          if (granted) {
+            // Receipt on durable medium (angrerettloven § 18). Only on first
+            // processing so retries don't re-send. Failure here must not fail the
+            // webhook (credits are already granted).
+            const amountKr = Math.round((session.amount_total ?? 0) / 100);
+            await sendPurchaseReceipt(email, credits, amountKr);
+          }
         } catch (e) {
           console.error("Stripe webhook credit grant failed:", e);
           // 500 so Stripe retries the delivery.
@@ -170,19 +177,21 @@ const CREDIT_PACKAGES: CreditPackage[] = [
 // Add credits to a user exactly once per Stripe event (idempotent). The event id
 // is recorded in its own doc inside the same transaction, so a webhook retry
 // (or duplicate delivery) can never double-credit.
+// Returns true if this event newly granted credits, false if it was already
+// processed (so callers can avoid sending a duplicate receipt on webhook retries).
 async function grantCreditsIdempotent(
   eventId: string,
   uid: string,
   email: string,
   credits: number
-): Promise<void> {
+): Promise<boolean> {
   const db = getFirestore();
-  await db.runTransaction(async (tx) => {
+  return db.runTransaction(async (tx) => {
     const evRef = db.collection("stripeEvents").doc(eventId);
     const userRef = db.collection("users").doc(uid);
     // All reads before any writes (Firestore requirement).
     const evSnap = await tx.get(evRef);
-    if (evSnap.exists) return; // already processed
+    if (evSnap.exists) return false; // already processed
     const userSnap = await tx.get(userRef);
     const current = (userSnap.data()?.credits as number) ?? 0;
     tx.set(
@@ -191,7 +200,60 @@ async function grantCreditsIdempotent(
       { merge: true }
     );
     tx.set(evRef, { uid, credits, processedAt: FieldValue.serverTimestamp() });
+    return true;
   });
+}
+
+// Purchase receipt on a durable medium (angrerettloven § 18). Sends via Resend if
+// RESEND_API_KEY + EMAIL_FROM are configured; otherwise logs the full receipt so it
+// is prepared and inspectable until an email provider is wired up. Never throws.
+async function sendPurchaseReceipt(
+  toEmail: string,
+  credits: number,
+  amountKr: number
+): Promise<void> {
+  if (!toEmail) return;
+  const appUrl = process.env.APP_URL || "https://bigfive-266007835585.europe-north1.run.app";
+  const support = process.env.SUPPORT_EMAIL || "[support-e-post]";
+  const subject = "Bekreftelse på ditt kjøp – Big Five Forberedelse";
+  const text = `Takk for kjøpet.
+
+Du har kjøpt ${credits} klipp til Big Five Forberedelse for ${amountKr} kr (inkl. mva).
+
+Klipp brukes til AI-økter (jobbanalyse eller øvingsintervju). En økt leveres digitalt
+og umiddelbart når du starter den. I checkout ba du uttrykkelig om at leveringen kan
+starte før angrefristen på 14 dager er utløpt, og du erkjente at angreretten bortfaller
+for et klipp når det tas i bruk.
+
+Refusjon: Har du ikke startet noen AI-økt på dette kjøpet, kan hele kjøpet refunderes
+innen 14 dager – kontakt oss. Når du har startet din første økt, er kjøpet endelig.
+Dette begrenser ikke lovfestede rettigheter ved feilbelastning eller teknisk feil.
+
+Brukervilkår: ${appUrl}/?juridisk=vilkar
+Personvernerklæring: ${appUrl}/?juridisk=personvern
+
+Spørsmål om kjøpet? Kontakt ${support}.`;
+
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.EMAIL_FROM;
+  if (!apiKey || !from) {
+    console.log(
+      `[kvittering – e-post ikke konfigurert ennå]\nTil: ${toEmail}\nEmne: ${subject}\n\n${text}`
+    );
+    return;
+  }
+  try {
+    const r = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ from, to: toEmail, subject, text }),
+    });
+    if (!r.ok) {
+      console.error("Resend receipt failed:", r.status, await r.text().catch(() => ""));
+    }
+  } catch (e) {
+    console.error("Receipt email error:", e);
+  }
 }
 
 // --- Firebase Admin (auth + Firestore credit ledger) ---
@@ -286,6 +348,21 @@ app.get("/api/me", requireAuth, async (req: AuthedRequest, res) => {
   } catch (e) {
     console.error("/api/me failed:", e);
     res.status(500).json({ error: "Kunne ikke hente saldo." });
+  }
+});
+
+// GDPR: delete the signed-in user's account and personal data. Removes the
+// Firestore user document (e-post + klippsaldo) and the Firebase Auth user.
+// Irreversible. Local data (localStorage) clears on the client side.
+app.post("/api/delete-account", requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    const uid = req.uid!;
+    await getFirestore().collection("users").doc(uid).delete();
+    await getAuth().deleteUser(uid);
+    res.json({ deleted: true });
+  } catch (e) {
+    console.error("delete-account failed:", e);
+    res.status(500).json({ error: "Kunne ikke slette kontoen. Prøv igjen eller kontakt oss." });
   }
 });
 
