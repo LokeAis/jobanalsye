@@ -21,10 +21,15 @@ foreach ($line in Get-Content ".env") {
 
 # --- Runtime-variabler Cloud Run trenger (IKKE VITE_*, de bakes inn ved bygg;
 #     IKKE FIREBASE_SERVICE_ACCOUNT, Cloud Run bruker runtime-identiteten). ---
-$keys = @("GEMINI_API_KEY", "STARTER_CREDITS", "ADMIN_TOPUP_SECRET", "SESSION_SECRET")
-$pairs = foreach ($k in $keys) {
+$required = @("GEMINI_API_KEY", "STARTER_CREDITS", "ADMIN_TOPUP_SECRET", "SESSION_SECRET")
+$pairs = foreach ($k in $required) {
     if (-not $envVars.ContainsKey($k)) { throw "$k mangler i .env" }
     "$k=$($envVars[$k])"
+}
+# Valgfrie Stripe-nokler: tas bare med hvis de er satt (tomme = "kjop kommer snart").
+$optional = @("STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET")
+foreach ($k in $optional) {
+    if ($envVars.ContainsKey($k) -and $envVars[$k]) { $pairs += "$k=$($envVars[$k])" }
 }
 $setEnv = $pairs -join ","
 
