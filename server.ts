@@ -20,12 +20,14 @@ app.set("trust proxy", 1);
 
 // Security headers. Clickjacking (X-Frame-Options), HSTS, nosniff, referrer-policy
 // osv. CSP er bevisst AV inntil vi kan teste Firebase-innlogging i nettleser med en
-// skreddersydd policy (feil CSP knekker auth-popup). COOP settes til
-// "same-origin-allow-popups" fordi Firebase signInWithPopup ellers brytes av COOP.
+// skreddersydd policy (feil CSP knekker auth-popup). COOP er AV fordi den (selv som
+// "same-origin-allow-popups") forstyrrer Firebase signInWithPopup sine window.closed/
+// window.close-kall mot Google-popupen. Vi bruker ikke cross-origin-isolering, saa
+// COOP gir oss ingen beskyttelse vi trenger.
 app.use(
   helmet({
     contentSecurityPolicy: false,
-    crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
+    crossOriginOpenerPolicy: false,
     crossOriginEmbedderPolicy: false,
   })
 );
