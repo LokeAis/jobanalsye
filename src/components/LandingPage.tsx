@@ -1,5 +1,6 @@
 import React from 'react';
-import { Compass, BookOpen, ClipboardList, Shield, Award, ArrowRight } from 'lucide-react';
+import { Compass, BookOpen, ClipboardList, Shield, Award, ArrowRight, Ticket } from 'lucide-react';
+import CreditPurchase from './CreditPurchase';
 
 interface LandingPageProps {
   onStart: () => void;
@@ -109,6 +110,23 @@ export default function LandingPage({ onStart, onViewOverview, completedCount }:
         <p className="text-slate-600 text-sm leading-relaxed">
           I en rekrutteringsprosess er det lett å ville fremstå "perfekt", men dette slår uheldig ut på testenes validitets- og konsistensmålinger. Generalprøven hjelper deg med å bli godt nok kjent med egne tendenser til å svare raskt, ærlig og konsistent under det reelle presset.
         </p>
+      </div>
+
+      {/* Pricing */}
+      <div id="priser" className="mt-10">
+        <div className="text-center mb-6">
+          <div className="inline-flex items-center gap-2 px-3 py-1 bg-amber-50 border border-amber-200 rounded-full text-amber-800 text-xs font-semibold mb-3">
+            <Ticket className="w-3.5 h-3.5 text-amber-600" />
+            Priser
+          </div>
+          <h2 className="text-2xl font-bold text-slate-900 tracking-tight mb-2">Test gratis – betal kun for AI</h2>
+          <p className="text-slate-600 text-sm max-w-2xl mx-auto leading-relaxed">
+            Selve generalprøven, profilen og notatene er gratis. AI-jobbanalysen og
+            øvingsintervjuet bruker «klipp»: <strong>1 klipp = én AI-jobbanalyse eller
+            ett øvingsintervju</strong>. Nye brukere får ett klipp gratis.
+          </p>
+        </div>
+        <CreditPurchase />
       </div>
     </div>
   );

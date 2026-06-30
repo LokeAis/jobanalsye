@@ -63,15 +63,6 @@ export default function CreditPurchase({ compact = false }: { compact?: boolean 
     }
   };
 
-  // Payment not set up yet — graceful "coming soon".
-  if (configured === false) {
-    return (
-      <p className="text-sm text-slate-500">
-        Kjøp av klipp kommer snart. Ta kontakt om du trenger flere klipp i mellomtiden.
-      </p>
-    );
-  }
-
   if (configured === null) {
     return (
       <div className="flex items-center gap-2 text-slate-400 text-sm">
@@ -80,16 +71,27 @@ export default function CreditPurchase({ compact = false }: { compact?: boolean 
     );
   }
 
+  // Prices are always shown (single source of truth from the server). When Stripe
+  // isn't live yet, buttons are disabled and a "coming soon" note is shown.
+  const comingSoon = configured === false;
+
   return (
-    <div className={compact ? 'space-y-2' : 'grid sm:grid-cols-3 gap-3'}>
+    <div className="space-y-3">
+      {comingSoon && (
+        <p className="text-xs sm:text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+          Kjøp av klipp åpner snart. Ta kontakt om du trenger flere klipp i mellomtiden.
+        </p>
+      )}
+      <div className={compact ? 'space-y-2' : 'grid sm:grid-cols-3 gap-3'}>
       {packages.map((pkg) => {
         const perClip = Math.round(pkg.amountNok / pkg.credits);
         return (
           <button
             key={pkg.id}
             onClick={() => buy(pkg)}
-            disabled={busyId !== null}
-            className={`relative flex items-center justify-between gap-3 bg-white rounded-xl p-4 transition text-left disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${
+            disabled={busyId !== null || comingSoon}
+            title={comingSoon ? 'Kjøp åpner snart' : undefined}
+            className={`relative flex items-center justify-between gap-3 bg-white rounded-xl p-4 transition text-left disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer ${
               pkg.badge
                 ? 'border-2 border-amber-300 hover:border-amber-400 hover:bg-amber-50/40'
                 : 'border border-amber-200 hover:border-amber-300 hover:bg-amber-50/40'
@@ -115,6 +117,7 @@ export default function CreditPurchase({ compact = false }: { compact?: boolean 
           </button>
         );
       })}
+      </div>
     </div>
   );
 }

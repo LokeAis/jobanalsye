@@ -12,6 +12,7 @@ import InterviewPrep from './components/InterviewPrep';
 import NotesSection from './components/NotesSection';
 import JobAnalysis from './components/JobAnalysis';
 import InterviewSimulator from './components/InterviewSimulator';
+import CreditPurchase from './components/CreditPurchase';
 
 import { 
   Compass, 
@@ -27,7 +28,9 @@ import {
   MessageSquare,
   Ticket,
   LogIn,
-  LogOut
+  LogOut,
+  Plus,
+  X
 } from 'lucide-react';
 
 type TabType = 'home' | 'theory' | 'questionnaire' | 'results' | 'consistency' | 'prep' | 'jobAnalysis' | 'interview' | 'notes' | 'privacy';
@@ -50,6 +53,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>('home');
   const { configured, loading, user, credits, signIn, signOut, refreshCredits } = useAuth();
   const { toast, confirm } = useFeedback();
+  const [showPurchase, setShowPurchase] = useState(false);
 
   // Handle return from Stripe Checkout (?kjop=ok / ?kjop=avbrutt).
   useEffect(() => {
@@ -375,13 +379,15 @@ export default function App() {
               {configured && !loading && (
                 user ? (
                   <div className="flex items-center gap-2">
-                    <span
-                      className="flex items-center gap-1.5 text-xs font-bold px-2.5 py-1.5 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg"
-                      title="Dine AI-klipp"
+                    <button
+                      onClick={() => setShowPurchase(true)}
+                      className="flex items-center gap-1.5 text-xs font-bold px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 rounded-lg transition cursor-pointer"
+                      title="Dine AI-klipp – klikk for å kjøpe flere"
                     >
                       <Ticket className="w-3.5 h-3.5" />
                       {credits ?? '–'} klipp
-                    </span>
+                      <Plus className="w-3 h-3" />
+                    </button>
                     <button
                       onClick={() => signOut()}
                       title={user.email || 'Logg ut'}
@@ -887,6 +893,36 @@ export default function App() {
               </div>
             );
           })()}
+        </div>
+      )}
+
+      {/* Credit purchase modal (opened from the credit chip) */}
+      {showPurchase && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-900/40 flex items-center justify-center p-4"
+          onClick={() => setShowPurchase(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Kjøp klipp"
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6 relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setShowPurchase(false)}
+              className="absolute top-3 right-3 p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+              aria-label="Lukk"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <h2 className="text-xl font-bold text-slate-900 mb-1">Kjøp AI-klipp</h2>
+            <p className="text-slate-600 text-sm mb-5">
+              1 klipp = én AI-jobbanalyse eller ett øvingsintervju. Du har nå{' '}
+              <span className="font-semibold text-amber-700">{credits ?? 0} klipp</span>.
+            </p>
+            <CreditPurchase />
+          </div>
         </div>
       )}
 
