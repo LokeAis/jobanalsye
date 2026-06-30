@@ -17,7 +17,14 @@ interface CreditPackage {
  * redirects to Stripe's hosted checkout. Credits are granted by the signed
  * webhook after payment — never client-side.
  */
-export default function CreditPurchase({ compact = false }: { compact?: boolean }) {
+export default function CreditPurchase({
+  compact = false,
+  blocked = false,
+}: {
+  compact?: boolean;
+  /** When true (e.g. required consent not yet given), buy buttons are disabled. */
+  blocked?: boolean;
+}) {
   const { user, signIn, authedFetch } = useAuth();
   const { toast } = useFeedback();
 
@@ -89,8 +96,8 @@ export default function CreditPurchase({ compact = false }: { compact?: boolean 
           <button
             key={pkg.id}
             onClick={() => buy(pkg)}
-            disabled={busyId !== null || comingSoon}
-            title={comingSoon ? 'Kjøp åpner snart' : undefined}
+            disabled={busyId !== null || comingSoon || blocked}
+            title={comingSoon ? 'Kjøp åpner snart' : blocked ? 'Bekreft samtykket under for å kjøpe' : undefined}
             className={`relative flex items-center justify-between gap-3 bg-white rounded-xl p-4 transition text-left disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer ${
               pkg.badge
                 ? 'border-2 border-amber-300 hover:border-amber-400 hover:bg-amber-50/40'

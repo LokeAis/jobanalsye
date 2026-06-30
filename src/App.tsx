@@ -13,7 +13,10 @@ import NotesSection from './components/NotesSection';
 import JobAnalysis from './components/JobAnalysis';
 import InterviewSimulator from './components/InterviewSimulator';
 import CreditPurchase from './components/CreditPurchase';
+import LegalView from './components/LegalView';
 import { useDialog } from './hooks/useDialog';
+import personvernMd from '@/docs/PERSONVERN.md?raw';
+import vilkarMd from '@/docs/VILKAR.md?raw';
 
 import { 
   Compass, 
@@ -55,8 +58,14 @@ export default function App() {
   const { configured, loading, user, credits, signIn, signOut, refreshCredits } = useAuth();
   const { toast, confirm } = useFeedback();
   const [showPurchase, setShowPurchase] = useState(false);
+  const [purchaseConsent, setPurchaseConsent] = useState(false);
   const closePurchase = useCallback(() => setShowPurchase(false), []);
   const purchaseDialogRef = useDialog<HTMLDivElement>(showPurchase, closePurchase);
+  const [legalView, setLegalView] = useState<null | 'personvern' | 'vilkar'>(null);
+  const openLegal = useCallback((doc: 'personvern' | 'vilkar') => {
+    setShowPurchase(false);
+    setLegalView(doc);
+  }, []);
 
   // Handle return from Stripe Checkout (?kjop=ok / ?kjop=avbrutt).
   useEffect(() => {
@@ -383,7 +392,7 @@ export default function App() {
                 user ? (
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => setShowPurchase(true)}
+                      onClick={() => { setPurchaseConsent(false); setShowPurchase(true); }}
                       className="flex items-center gap-1.5 text-xs font-bold px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 rounded-lg transition cursor-pointer"
                       title="Dine AI-klipp – klikk for å kjøpe flere"
                     >
@@ -562,9 +571,24 @@ export default function App() {
               <h2 className="text-xl sm:text-2xl font-bold text-slate-900 text-center mb-2">
                 Slik håndteres dine data
               </h2>
-              <p className="text-slate-500 text-xs sm:text-sm text-center mb-6 max-w-md mx-auto">
+              <p className="text-slate-500 text-xs sm:text-sm text-center mb-5 max-w-md mx-auto">
                 Testen og notatene dine forblir lokalt på din enhet. Den valgfrie AI-jobbanalysen sender data til Google Gemini for å generere rapporten.
               </p>
+
+              <div className="flex flex-wrap justify-center gap-2 mb-6">
+                <button
+                  onClick={() => setLegalView('personvern')}
+                  className="text-xs font-semibold px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-lg transition cursor-pointer"
+                >
+                  Les hele personvernerklæringen
+                </button>
+                <button
+                  onClick={() => setLegalView('vilkar')}
+                  className="text-xs font-semibold px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-lg transition cursor-pointer"
+                >
+                  Vilkår & kjøpsbetingelser
+                </button>
+              </div>
 
               <div className="space-y-4 text-slate-600 text-sm sm:text-base leading-relaxed mb-8 border-t border-slate-100 pt-6">
                 <p>
@@ -661,8 +685,17 @@ export default function App() {
 
       {/* Footer for print & branding */}
       <footer className="bg-slate-50 border-t border-slate-200 py-6 text-center text-xs text-slate-400 mt-auto shrink-0 print:hidden">
-        <div className="max-w-6xl mx-auto px-4">
+        <div className="max-w-6xl mx-auto px-4 space-y-2">
           <p>© 2026 Big Five Forberedelse — Test og notater lagres lokalt. AI-jobbanalysen (valgfri) bruker Google Gemini.</p>
+          <p className="flex items-center justify-center gap-3">
+            <button onClick={() => setLegalView('personvern')} className="hover:text-slate-600 underline cursor-pointer">
+              Personvern
+            </button>
+            <span aria-hidden="true">·</span>
+            <button onClick={() => setLegalView('vilkar')} className="hover:text-slate-600 underline cursor-pointer">
+              Vilkår & kjøpsbetingelser
+            </button>
+          </p>
         </div>
       </footer>
 
@@ -886,6 +919,16 @@ export default function App() {
         </div>
       )}
 
+      {/* Legal documents (privacy / terms) shown full-screen */}
+      {legalView && (
+        <div className="fixed inset-0 z-50 bg-white overflow-y-auto print:hidden">
+          <LegalView
+            source={legalView === 'personvern' ? personvernMd : vilkarMd}
+            onBack={() => setLegalView(null)}
+          />
+        </div>
+      )}
+
       {/* Credit purchase modal (opened from the credit chip) */}
       {showPurchase && (
         <div
@@ -909,11 +952,37 @@ export default function App() {
               <X className="w-5 h-5" />
             </button>
             <h2 className="text-xl font-bold text-slate-900 mb-1">Kjøp AI-klipp</h2>
-            <p className="text-slate-600 text-sm mb-5">
+            <p className="text-slate-600 text-sm mb-4">
               1 klipp = én AI-jobbanalyse eller ett øvingsintervju. Du har nå{' '}
               <span className="font-semibold text-amber-700">{credits ?? 0} klipp</span>.
             </p>
-            <CreditPurchase />
+
+            <CreditPurchase blocked={!purchaseConsent} />
+
+            {/* Required consent (angrerett / immediate delivery) + links before paying */}
+            <label className="flex items-start gap-2.5 mt-4 text-xs text-slate-600 leading-relaxed cursor-pointer">
+              <input
+                type="checkbox"
+                checked={purchaseConsent}
+                onChange={(e) => setPurchaseConsent(e.target.checked)}
+                className="mt-0.5 w-4 h-4 accent-teal-700 shrink-0 cursor-pointer"
+              />
+              <span>
+                Jeg ber uttrykkelig om at en AI-økt kan leveres umiddelbart når jeg starter
+                den, også før angrefristen på 14 dager er utløpt, og jeg erkjenner at
+                angreretten bortfaller for et klipp når det tas i bruk (angrerettloven § 22 n).
+              </span>
+            </label>
+            <p className="text-[11px] text-slate-400 mt-3">
+              Ved kjøp godtar du{' '}
+              <button onClick={() => openLegal('vilkar')} className="text-teal-700 underline cursor-pointer">
+                vilkårene
+              </button>{' '}
+              og bekrefter at du har lest{' '}
+              <button onClick={() => openLegal('personvern')} className="text-teal-700 underline cursor-pointer">
+                personvernerklæringen
+              </button>.
+            </p>
           </div>
         </div>
       )}
