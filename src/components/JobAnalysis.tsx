@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { statements, DimensionKey, dimensionsData, resolveDimensionKey } from '../data/statements';
-import { usePremium } from '../premium/PremiumContext';
 import { useAuth } from '../auth/AuthContext';
 import { useFeedback } from '../ui/Feedback';
 import CreditPurchase from './CreditPurchase';
@@ -68,11 +67,10 @@ interface SavedAnalysis {
   createdAt: string;
 }
 
-const FREE_HISTORY_LIMIT = 1;
-const PREMIUM_HISTORY_LIMIT = 25;
+// Saved-analysis history is local-only (free), so we keep a generous cap.
+const HISTORY_LIMIT = 25;
 
 export default function JobAnalysis({ answers, notes, onSaveNote, onNavigateToTab }: JobAnalysisProps) {
-  const { isPremium } = usePremium();
   const { configured, user, credits, signIn, authedFetch, refreshCredits } = useAuth();
   const { toast } = useFeedback();
 
@@ -105,7 +103,7 @@ export default function JobAnalysis({ answers, notes, onSaveNote, onNavigateToTa
     return null;
   });
 
-  // 3b. Saved-analysis history (premium can keep many; free keeps the latest one).
+  // 3b. Saved-analysis history (local-only; everyone keeps up to HISTORY_LIMIT).
   const [history, setHistory] = useState<SavedAnalysis[]>(() => {
     const saved = localStorage.getItem('bigfive_prep_job_analyses');
     if (saved) {
@@ -249,8 +247,7 @@ export default function JobAnalysis({ answers, notes, onSaveNote, onNavigateToTa
         analysis: analysisData,
         createdAt: new Date().toISOString(),
       };
-      const limit = isPremium ? PREMIUM_HISTORY_LIMIT : FREE_HISTORY_LIMIT;
-      persistHistory([entry, ...history].slice(0, limit));
+      persistHistory([entry, ...history].slice(0, HISTORY_LIMIT));
 
       // Auto pre-fill recommended STAR-story prompts ONLY where the note is empty.
       // We never overwrite the user's own text or an existing template here — the
@@ -362,7 +359,7 @@ export default function JobAnalysis({ answers, notes, onSaveNote, onNavigateToTa
     try {
       // Lazy-load the heavy PDF libraries only on first export.
       const { exportBriefingToPdf } = await import('../utils/pdfExport');
-      const ok = await exportBriefingToPdf(filename, { watermark: !isPremium });
+      const ok = await exportBriefingToPdf(filename);
       if (!ok) {
         toast('Kunne ikke lage PDF akkurat nå. Prøv «Skriv ut» som alternativ.', 'error');
       }
@@ -468,13 +465,12 @@ export default function JobAnalysis({ answers, notes, onSaveNote, onNavigateToTa
         /* 3. Fully Unlocked Feature Grid (If Completed Questionnaire) */
         <div className="print:hidden">
 
-          {/* Saved analyses (premium history) */}
-          {isPremium && history.length > 0 && (
+          {/* Saved analyses (local history) */}
+          {history.length > 0 && (
             <div className="max-w-3xl mx-auto mb-6 bg-white border border-slate-100 rounded-xl p-4 sm:p-5 shadow-xs">
               <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2 mb-3">
                 <History className="w-4 h-4 text-teal-600" />
                 Lagrede jobbanalyser
-                <span className="text-[10px] bg-teal-100 text-teal-800 px-1.5 py-0.5 rounded-sm font-bold">PREMIUM</span>
               </h4>
               <ul className="space-y-2">
                 {history.map((entry) => {
@@ -511,19 +507,6 @@ export default function JobAnalysis({ answers, notes, onSaveNote, onNavigateToTa
                   );
                 })}
               </ul>
-            </div>
-          )}
-
-          {/* Free-tier upsell: saving multiple analyses is premium */}
-          {!isPremium && history.length > 0 && (
-            <div className="max-w-3xl mx-auto mb-6 bg-amber-50/60 border border-amber-200/70 rounded-xl p-4 flex items-start gap-3 text-xs sm:text-sm">
-              <Sparkles className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-              <div>
-                <span className="font-semibold text-amber-950 block">Vil du lagre og sammenligne flere jobbanalyser?</span>
-                <span className="text-amber-900/90">
-                  Gratisversjonen beholder kun den siste. Med premium kan du lagre flere stillinger og bytte mellom dem. Aktiver i Personvern-fanen.
-                </span>
-              </div>
             </div>
           )}
 

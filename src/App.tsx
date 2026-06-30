@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { statements, DimensionKey, dimensionsData, resolveDimensionKey } from './data/statements';
-import { usePremium } from './premium/PremiumContext';
 import { useAuth } from './auth/AuthContext';
 import { useFeedback } from './ui/Feedback';
 import DisclaimerBanner from './components/DisclaimerBanner';
@@ -21,9 +20,8 @@ import {
   FileText, 
   ShieldCheck, 
   HelpCircle, 
-  BookMarked, 
-  ShieldAlert, 
-  Trash2, 
+  BookMarked,
+  Trash2,
   Home,
   Check,
   Sparkles,
@@ -51,7 +49,6 @@ const STORAGE_KEYS = [
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>('home');
-  const { isPremium, unlock, lock } = usePremium();
   const { configured, loading, user, credits, signIn, signOut, refreshCredits } = useAuth();
   const { toast, confirm } = useFeedback();
 
@@ -566,47 +563,6 @@ export default function App() {
                 <p>
                   • <strong>AI-jobbanalysen (valgfri) bruker en ekstern tjeneste:</strong> Hvis du velger å kjøre AI Jobbanalyse, sendes stillingstittelen, stillingsbeskrivelsen du limer inn, og dine beregnede Big Five-skårer til vår server og videre til <strong>Google Gemini</strong> for å generere rapporten. Ikke lim inn sensitive personopplysninger i stillingsfeltene. Denne delen er helt frivillig — resten av appen fungerer fullt ut uten den.
                 </p>
-              </div>
-
-              {/* Premium status / dev toggle */}
-              <div className="border-t border-slate-150 pt-6 mb-2">
-                <h3 className="font-bold text-slate-900 text-sm sm:text-base mb-2 flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-amber-500" />
-                  Premium-tilgang
-                </h3>
-                <p className="text-slate-500 text-xs sm:text-sm leading-relaxed mb-4">
-                  Premium låser opp flere lagrede jobbanalyser, intervju-simulatoren og PDF uten vannmerke.
-                  {' '}
-                  <span className="italic">Foreløpig er dette en gratis utviklertilgang uten betaling.</span>
-                </p>
-                <div className="flex items-center gap-3 flex-wrap">
-                  <span
-                    className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border ${
-                      isPremium
-                        ? 'bg-amber-50 border-amber-200 text-amber-800'
-                        : 'bg-slate-50 border-slate-200 text-slate-500'
-                    }`}
-                  >
-                    {isPremium ? <Check className="w-3.5 h-3.5" /> : <ShieldAlert className="w-3.5 h-3.5" />}
-                    {isPremium ? 'Premium aktiv' : 'Gratisversjon'}
-                  </span>
-                  {isPremium ? (
-                    <button
-                      onClick={lock}
-                      className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 hover:border-slate-300 font-semibold px-4 py-2 rounded-lg text-xs sm:text-sm transition cursor-pointer"
-                    >
-                      Slå av premium
-                    </button>
-                  ) : (
-                    <button
-                      onClick={unlock}
-                      className="bg-amber-500 hover:bg-amber-600 text-white font-semibold px-4 py-2 rounded-lg text-xs sm:text-sm transition cursor-pointer flex items-center gap-2"
-                    >
-                      <Sparkles className="w-4 h-4" />
-                      Lås opp premium (gratis)
-                    </button>
-                  )}
-                </div>
               </div>
 
               {/* Backup / Restore Section */}

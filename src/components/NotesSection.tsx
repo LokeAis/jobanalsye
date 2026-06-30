@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { DimensionKey, dimensionsData, statements } from '../data/statements';
-import { usePremium } from '../premium/PremiumContext';
 import { useFeedback } from '../ui/Feedback';
 import { Save, Printer, Download, BookOpen, Layers, CheckCircle, RefreshCw } from 'lucide-react';
 // pdfExport (jspdf + html2canvas) is imported dynamically in handleExportPdf so
@@ -13,7 +12,6 @@ interface NotesSectionProps {
 }
 
 export default function NotesSection({ notes, onSaveNote, answers }: NotesSectionProps) {
-  const { isPremium } = usePremium();
   const { toast } = useFeedback();
   const [activeDimKey, setActiveDimKey] = useState<DimensionKey>('planmessighet');
   const [saveStatus, setSaveStatus] = useState<string>('Lagret automatisk');
@@ -97,7 +95,7 @@ export default function NotesSection({ notes, onSaveNote, answers }: NotesSectio
     const filename = `intervjubriefing_${sanitizedTitle}.pdf`;
     try {
       const { exportBriefingToPdf } = await import('../utils/pdfExport');
-      const ok = await exportBriefingToPdf(filename, { watermark: !isPremium });
+      const ok = await exportBriefingToPdf(filename);
       if (!ok) {
         toast('Kunne ikke lage PDF akkurat nå. Prøv «Skriv ut» som alternativ.', 'error');
       }

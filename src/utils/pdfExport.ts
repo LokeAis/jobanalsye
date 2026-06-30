@@ -1,11 +1,6 @@
 import jsPDF from 'jspdf';
 import { statements, dimensionsData, DimensionKey, resolveDimensionKey } from '../data/statements';
 
-interface PdfExportOptions {
-  /** When true, stamp a subtle "gratisversjon" footer on every page. */
-  watermark?: boolean;
-}
-
 interface DimNote {
   workExample: string;
   interviewStrength: string;
@@ -28,8 +23,7 @@ const readJSON = <T,>(key: string, fallback: T): T => {
  * otherwise a notes-only document. No DOM rasterization (no html2canvas).
  */
 export const exportBriefingToPdf = async (
-  filename?: string,
-  options: PdfExportOptions = {}
+  filename?: string
 ): Promise<boolean> => {
   try {
     const answers = readJSON<Record<string, number>>('bigfive_prep_answers', {});
@@ -185,23 +179,6 @@ export const exportBriefingToPdf = async (
         italic: true,
         color: [148, 163, 184],
       });
-    }
-
-    // --- Free-version watermark on every page ---
-    if (options.watermark) {
-      const pageCount = pdf.getNumberOfPages();
-      for (let i = 1; i <= pageCount; i++) {
-        pdf.setPage(i);
-        pdf.setFont('helvetica', 'normal');
-        pdf.setFontSize(8);
-        pdf.setTextColor(160, 160, 160);
-        pdf.text(
-          'Big Five Forberedelse – gratisversjon · Oppgrader til premium for PDF uten denne teksten',
-          pageW / 2,
-          pageH - 6,
-          { align: 'center' }
-        );
-      }
     }
 
     pdf.save(filename || 'intervjubriefing.pdf');
