@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useCallback, useRef, useState } from 'react';
 import { CheckCircle, AlertCircle, Info, X, AlertTriangle } from 'lucide-react';
+import { useDialog } from '../hooks/useDialog';
 
 /**
  * App-wide feedback: toasts and a promise-based confirm dialog. Replaces the
@@ -57,6 +58,14 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
     setPending(null);
   };
 
+  // Stable cancel for the dialog a11y hook (Escape / backdrop / focus return).
+  const cancel = useCallback(() => {
+    resolverRef.current?.(false);
+    resolverRef.current = null;
+    setPending(null);
+  }, []);
+  const confirmDialogRef = useDialog<HTMLDivElement>(!!pending, cancel);
+
   const toastStyles: Record<ToastType, string> = {
     success: 'bg-white border-emerald-200 text-emerald-950',
     error: 'bg-white border-rose-200 text-rose-950',
@@ -104,10 +113,12 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
           role="dialog"
           aria-modal="true"
           aria-labelledby="confirm-title"
-          onClick={() => settle(false)}
+          onClick={cancel}
         >
           <div
-            className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4 animate-fade-in"
+            ref={confirmDialogRef}
+            tabIndex={-1}
+            className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4 animate-fade-in outline-none"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start gap-3">
@@ -127,13 +138,13 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
             </div>
             <div className="flex justify-end gap-2 pt-1">
               <button
-                onClick={() => settle(false)}
+                onClick={cancel}
                 className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold px-4 py-2 rounded-lg text-sm transition cursor-pointer"
               >
                 {pending.cancelLabel || 'Avbryt'}
               </button>
               <button
-                autoFocus
+                data-autofocus
                 onClick={() => settle(true)}
                 className={`text-white font-semibold px-4 py-2 rounded-lg text-sm transition cursor-pointer ${
                   pending.danger ? 'bg-rose-600 hover:bg-rose-700' : 'bg-teal-700 hover:bg-teal-800'

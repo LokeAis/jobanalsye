@@ -675,3 +675,34 @@ export const bandsData: Record<DimensionKey, Record<'Lav' | 'Moderat' | 'Høy', 
     }
   }
 };
+
+// ---------------------------------------------------------------------------
+// Scoring helpers (single source of truth — previously duplicated across
+// Results, ConsistencyReview, InterviewSimulator, JobAnalysis, App, pdfExport).
+// ---------------------------------------------------------------------------
+
+export type Band = 'Lav' | 'Moderat' | 'Høy';
+
+/** Effective (forward-scored) value of one answer, reversing negatively keyed items.
+ *  Missing answers fall back to neutral (3). Likert values are 1–5. */
+export function effectiveAnswer(statement: Statement, rawAnswer: number | undefined): number {
+  const ans = rawAnswer ?? 3;
+  return statement.keyed === 'negativ' ? 6 - ans : ans;
+}
+
+/** Mean dimension score (1–5), unrounded. */
+export function computeDimensionScore(
+  dim: DimensionKey,
+  answers: Record<string, number>
+): number {
+  const dimStatements = statements.filter((s) => s.dimensjon === dim);
+  const sum = dimStatements.reduce((acc, s) => acc + effectiveAnswer(s, answers[s.id]), 0);
+  return sum / dimStatements.length;
+}
+
+/** Map a dimension score to its band. Lav ≤ 2.6, Høy ≥ 3.7, else Moderat. */
+export function getBand(score: number): Band {
+  if (score <= 2.6) return 'Lav';
+  if (score >= 3.7) return 'Høy';
+  return 'Moderat';
+}

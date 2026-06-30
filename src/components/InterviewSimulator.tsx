@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { statements, DimensionKey } from '../data/statements';
+import { statements, DimensionKey, computeDimensionScore, getBand } from '../data/statements';
 import { MessageSquare, Send, RefreshCw, Lock, ArrowRight, Bot, User, ShieldAlert, Sparkles, Ticket } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import CreditPurchase from './CreditPurchase';
@@ -40,15 +40,8 @@ export default function InterviewSimulator({ answers, onNavigateToTab }: Intervi
     const keys: DimensionKey[] = ['planmessighet', 'emosjonell_stabilitet', 'ekstroversjon', 'omgjengelighet', 'aapenhet'];
     const result: Record<string, { score: number; band: string }> = {};
     keys.forEach((dim) => {
-      const dimStatements = statements.filter((s) => s.dimensjon === dim);
-      let sum = 0;
-      dimStatements.forEach((s) => {
-        const ans = answers[s.id] || 3;
-        sum += s.keyed === 'negativ' ? 6 - ans : ans;
-      });
-      const score = sum / dimStatements.length;
-      const band = score <= 2.6 ? 'Lav' : score >= 3.7 ? 'Høy' : 'Moderat';
-      result[dim] = { score, band };
+      const score = computeDimensionScore(dim, answers);
+      result[dim] = { score, band: getBand(score) };
     });
     return result;
   };

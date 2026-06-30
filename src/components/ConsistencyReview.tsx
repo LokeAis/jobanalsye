@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { statements, consistencyPairs, DimensionKey, dimensionsData, bandsData } from '../data/statements';
+import { statements, consistencyPairs, DimensionKey, dimensionsData, bandsData, computeDimensionScore, getBand, effectiveAnswer } from '../data/statements';
 import { ShieldCheck, AlertCircle, HelpCircle, Check, ArrowRight, Lock, Timer, Award, MessageSquare, HelpCircle as HelpIcon } from 'lucide-react';
 
 interface ConsistencyReviewProps {
@@ -74,33 +74,17 @@ export default function ConsistencyReview({ answers, onNavigateToTab }: Consiste
   };
 
   // Helper to calculate score per dimension
-  const getScore = (dim: DimensionKey): number => {
-    const dimStatements = statements.filter(s => s.dimensjon === dim);
-    let sum = 0;
-    dimStatements.forEach(s => {
-      const ans = answers[s.id] || 3;
-      const actualVal = s.keyed === 'negativ' ? (6 - ans) : ans;
-      sum += actualVal;
-    });
-    return sum / dimStatements.length;
-  };
-
-  const getBand = (score: number): 'Lav' | 'Moderat' | 'Høy' => {
-    if (score <= 2.6) return 'Lav';
-    if (score >= 3.7) return 'Høy';
-    return 'Moderat';
-  };
+  const getScore = (dim: DimensionKey): number => computeDimensionScore(dim, answers);
 
   // Evaluate consistency pairs
   const evaluatedPairs = consistencyPairs.map((pair) => {
     const st1 = statements.find(s => s.id === pair.st1Id)!;
     const st2 = statements.find(s => s.id === pair.st2Id)!;
 
-    const rawAns1 = answers[pair.st1Id] || 3;
-    const rawAns2 = answers[pair.st2Id] || 3;
-
-    const score1 = st1.keyed === 'negativ' ? (6 - rawAns1) : rawAns1;
-    const score2 = st2.keyed === 'negativ' ? (6 - rawAns2) : rawAns2;
+    const rawAns1 = answers[pair.st1Id] ?? 3;
+    const rawAns2 = answers[pair.st2Id] ?? 3;
+    const score1 = effectiveAnswer(st1, rawAns1);
+    const score2 = effectiveAnswer(st2, rawAns2);
 
     const diff = Math.abs(score1 - score2);
     const spriker = diff >= 3;

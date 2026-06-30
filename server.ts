@@ -587,10 +587,15 @@ Ikke skriv noe utenfor JSON-objektet.`,
     const resultText = response.text || "{}";
     const analysisData = JSON.parse(resultText);
 
-    // Charge one credit now that we have a successful result.
+    // Charge one credit now that we have a successful result. If it returns null,
+    // a concurrent request drained the balance between the pre-check and here —
+    // don't hand out a free analysis.
     const remaining = await chargeOneCredit(req.uid!);
+    if (remaining === null) {
+      return res.status(402).json({ error: "Du har ingen klipp igjen. Kjøp flere for å kjøre en ny analyse." });
+    }
 
-    res.json({ ...analysisData, _credits: remaining ?? 0 });
+    res.json({ ...analysisData, _credits: remaining });
   } catch (error: any) {
     // Log full detail server-side; return a generic message so we don't leak
     // internal error details (or stack fragments) to the client.
@@ -740,10 +745,14 @@ Regler:
       response.text?.trim() ||
       "Beklager, jeg mistet tråden et øyeblikk. Kan du gjenta det siste svaret ditt?";
 
-    // Charge the session credit only on a successful opening turn.
+    // Charge the session credit only on a successful opening turn. If null, a
+    // concurrent start drained the balance — don't issue a free session.
     let remaining: number | null = null;
     if (isSessionStart) {
       remaining = await chargeOneCredit(req.uid!);
+      if (remaining === null) {
+        return res.status(402).json({ error: "Du har ingen klipp igjen. Kjøp flere for å starte et nytt intervju." });
+      }
     }
     const newTurnsLeft = turnsLeft - 1;
     const newSession = signSession({ uid: req.uid!, turnsLeft: newTurnsLeft, iat: Date.now() });

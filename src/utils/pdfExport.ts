@@ -1,5 +1,5 @@
 import jsPDF from 'jspdf';
-import { statements, dimensionsData, DimensionKey, resolveDimensionKey } from '../data/statements';
+import { dimensionsData, DimensionKey, resolveDimensionKey, computeDimensionScore, getBand } from '../data/statements';
 
 interface DimNote {
   workExample: string;
@@ -31,16 +31,7 @@ export const exportBriefingToPdf = async (
     const analysis = readJSON<any>('bigfive_prep_job_analysis', null);
     const jobTitle = (localStorage.getItem('bigfive_prep_job_title') || '').trim();
 
-    const getScore = (dim: DimensionKey): number => {
-      const ds = statements.filter((s) => s.dimensjon === dim);
-      let sum = 0;
-      ds.forEach((s) => {
-        const a = answers[s.id] || 3;
-        sum += s.keyed === 'negativ' ? 6 - a : a;
-      });
-      return sum / ds.length;
-    };
-    const getBand = (s: number) => (s <= 2.6 ? 'Lav' : s >= 3.7 ? 'Høy' : 'Moderat');
+    const getScore = (dim: DimensionKey): number => computeDimensionScore(dim, answers);
 
     const pdf = new jsPDF('p', 'mm', 'a4');
     const pageW = 210;

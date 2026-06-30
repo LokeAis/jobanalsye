@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { statements, DimensionKey, dimensionsData, bandsData } from '../data/statements';
+import { statements, DimensionKey, dimensionsData, bandsData, computeDimensionScore, getBand, Band } from '../data/statements';
 import { ChevronRight, Sparkles, AlertTriangle, HelpCircle, Lock } from 'lucide-react';
 
 interface ResultsProps {
@@ -48,25 +48,11 @@ export default function Results({ answers, onNavigateToTab }: ResultsProps) {
     );
   }
 
-  // Calculate scores for each dimension
-  const getScore = (dim: DimensionKey): number => {
-    const dimStatements = statements.filter(s => s.dimensjon === dim);
-    let sum = 0;
-    dimStatements.forEach(s => {
-      const ans = answers[s.id] || 3; // fallback to neutral if undefined (should not happen when isCompleted)
-      const actualVal = s.keyed === 'negativ' ? (6 - ans) : ans;
-      sum += actualVal;
-    });
-    return Number((sum / dimStatements.length).toFixed(1));
-  };
+  // Calculate scores for each dimension (rounded to 1 decimal for display + banding).
+  const getScore = (dim: DimensionKey): number =>
+    Number(computeDimensionScore(dim, answers).toFixed(1));
 
-  const getBand = (score: number): 'Lav' | 'Moderat' | 'Høy' => {
-    if (score <= 2.6) return 'Lav';
-    if (score >= 3.7) return 'Høy';
-    return 'Moderat';
-  };
-
-  const getBandColor = (band: 'Lav' | 'Moderat' | 'Høy') => {
+  const getBandColor = (band: Band) => {
     switch (band) {
       case 'Lav':
         return 'bg-amber-50 border-amber-200 text-amber-800';
@@ -305,7 +291,8 @@ export default function Results({ answers, onNavigateToTab }: ResultsProps) {
             {/* Horizontal timeline scale with mark boundaries */}
             <div className="relative w-full h-4 bg-slate-200 rounded-full">
               {/* Boundary markers */}
-              <div className="absolute left-[40%] top-0 bottom-0 w-0.5 bg-white z-10" title="Grense Lav-Moderat (2.6)" /> {/* 2.6 / 5.0 = 52% but visual alignment: 2.6 is 40% of scale of 1-5? Let's check math: 1.0 is left, 5.0 is right. Range is 4.0. 2.6 is (2.6-1)/4 = 40% of range. 3.6 is (3.6-1)/4 = 65% of range. Perfect! */}
+              {/* Skala 1–5 → posisjon i %: (verdi-1)/4. Lav-grense 2.6 = 40%, Høy-grense 3.6/3.7 ≈ 65%. */}
+              <div className="absolute left-[40%] top-0 bottom-0 w-0.5 bg-white z-10" title="Grense Lav-Moderat (2.6)" />
               <div className="absolute left-[65%] top-0 bottom-0 w-0.5 bg-white z-10" title="Grense Moderat-Høy (3.6)" />
               
               {/* Colored segment overlay */}

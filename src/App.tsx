@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { statements, DimensionKey, dimensionsData, resolveDimensionKey } from './data/statements';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { statements, DimensionKey, dimensionsData, resolveDimensionKey, computeDimensionScore, getBand } from './data/statements';
 import { useAuth } from './auth/AuthContext';
 import { useFeedback } from './ui/Feedback';
 import DisclaimerBanner from './components/DisclaimerBanner';
@@ -13,6 +13,7 @@ import NotesSection from './components/NotesSection';
 import JobAnalysis from './components/JobAnalysis';
 import InterviewSimulator from './components/InterviewSimulator';
 import CreditPurchase from './components/CreditPurchase';
+import { useDialog } from './hooks/useDialog';
 
 import { 
   Compass, 
@@ -54,6 +55,8 @@ export default function App() {
   const { configured, loading, user, credits, signIn, signOut, refreshCredits } = useAuth();
   const { toast, confirm } = useFeedback();
   const [showPurchase, setShowPurchase] = useState(false);
+  const closePurchase = useCallback(() => setShowPurchase(false), []);
+  const purchaseDialogRef = useDialog<HTMLDivElement>(showPurchase, closePurchase);
 
   // Handle return from Stripe Checkout (?kjop=ok / ?kjop=avbrutt).
   useEffect(() => {
@@ -711,21 +714,8 @@ export default function App() {
                           const matchedKey = resolveDimensionKey(t.trait);
 
                           if (matchedKey) {
-                            const dimStatements = statements.filter(s => s.dimensjon === matchedKey);
-                            let sum = 0;
-                            dimStatements.forEach(s => {
-                              const ans = answers[s.id] || 3;
-                              const actualVal = s.keyed === 'negativ' ? (6 - ans) : ans;
-                              sum += actualVal;
-                            });
-                            const score = sum / dimStatements.length;
-                            
-                            const getBandLocal = (s: number) => {
-                              if (s <= 2.6) return 'Lav';
-                              if (s >= 3.7) return 'Høy';
-                              return 'Moderat';
-                            };
-                            userBand = getBandLocal(score);
+                            const score = computeDimensionScore(matchedKey, answers);
+                            userBand = getBand(score);
                             userScoreText = `${userBand} tendens (${score.toFixed(1)}/5)`;
                           }
 
@@ -900,17 +890,19 @@ export default function App() {
       {showPurchase && (
         <div
           className="fixed inset-0 z-50 bg-slate-900/40 flex items-center justify-center p-4"
-          onClick={() => setShowPurchase(false)}
+          onClick={closePurchase}
           role="dialog"
           aria-modal="true"
           aria-label="Kjøp klipp"
         >
           <div
-            className="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6 relative"
+            ref={purchaseDialogRef}
+            tabIndex={-1}
+            className="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6 relative outline-none"
             onClick={(e) => e.stopPropagation()}
           >
             <button
-              onClick={() => setShowPurchase(false)}
+              onClick={closePurchase}
               className="absolute top-3 right-3 p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition cursor-pointer"
               aria-label="Lukk"
             >

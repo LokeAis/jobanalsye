@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { statements, DimensionKey, dimensionsData, resolveDimensionKey } from '../data/statements';
+import { statements, DimensionKey, dimensionsData, resolveDimensionKey, computeDimensionScore, getBand } from '../data/statements';
 import { useAuth } from '../auth/AuthContext';
 import { useFeedback } from '../ui/Feedback';
 import CreditPurchase from './CreditPurchase';
@@ -155,32 +155,12 @@ export default function JobAnalysis({ answers, notes, onSaveNote, onNavigateToTa
   }, [jobDescription]);
 
   // 6. Calculate user's dimension scores to send to the backend
-  const getScore = (dim: DimensionKey): number => {
-    const dimStatements = statements.filter(s => s.dimensjon === dim);
-    let sum = 0;
-    dimStatements.forEach(s => {
-      const ans = answers[s.id] || 3;
-      const actualVal = s.keyed === 'negativ' ? (6 - ans) : ans;
-      sum += actualVal;
-    });
-    return sum / dimStatements.length;
-  };
-
-  const getBand = (score: number): 'Lav' | 'Moderat' | 'Høy' => {
-    if (score <= 2.6) return 'Lav';
-    if (score >= 3.7) return 'Høy';
-    return 'Moderat';
-  };
-
   const getDimensionScores = (): Record<string, { score: number; band: string }> => {
     const scores: Record<string, { score: number; band: string }> = {};
     const keys: DimensionKey[] = ['planmessighet', 'emosjonell_stabilitet', 'ekstroversjon', 'omgjengelighet', 'aapenhet'];
     keys.forEach(key => {
-      const score = getScore(key);
-      scores[key] = {
-        score,
-        band: getBand(score)
-      };
+      const score = computeDimensionScore(key, answers);
+      scores[key] = { score, band: getBand(score) };
     });
     return scores;
   };
@@ -820,7 +800,7 @@ export default function JobAnalysis({ answers, notes, onSaveNote, onNavigateToTa
                         const matchedKey = resolveDimensionKey(t.trait);
 
                         if (matchedKey) {
-                          const score = getScore(matchedKey);
+                          const score = computeDimensionScore(matchedKey, answers);
                           userBand = getBand(score);
                           userScoreText = `${userBand} tendens (${score.toFixed(1)}/5)`;
                         }
