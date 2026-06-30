@@ -12,5 +12,9 @@ coverage
 .env
 .env.local
 .env.development
-docs
+# Merk: docs/ er IKKE ignorert — appen importerer docs/PERSONVERN.md + docs/VILKAR.md
+# (?raw) ved bygg for å vise dem i appen. Ekskluder dem og Vite-bygget feiler.
 README.md
+# Testfiler trengs ikke i imaget.
+**/*.test.ts
+**/*.test.tsx
