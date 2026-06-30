@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { statements, consistencyPairs, DimensionKey, dimensionsData, bandsData } from '../data/statements';
-import { ShieldCheck, AlertCircle, HelpCircle, Check, ArrowRight, Lock, Timer, Info, Award, MessageSquare, HelpCircle as HelpIcon, FileText } from 'lucide-react';
+import { ShieldCheck, AlertCircle, HelpCircle, Check, ArrowRight, Lock, Timer, Award, MessageSquare, HelpCircle as HelpIcon } from 'lucide-react';
 
 interface ConsistencyReviewProps {
   answers: Record<string, number>;

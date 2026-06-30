@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { statements, DimensionKey, dimensionsData, bandsData } from '../data/statements';
-import { HelpCircle, RefreshCw, MessageSquare, AlertCircle, FileText, Lock } from 'lucide-react';
+import { HelpCircle, MessageSquare, FileText, Lock } from 'lucide-react';
 
 interface InterviewPrepProps {
   answers: Record<string, number>;

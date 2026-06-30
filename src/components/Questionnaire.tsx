@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { statements, Statement, DimensionKey, dimensionsData } from '../data/statements';
-import { ChevronLeft, ChevronRight, CheckCircle, Info, HelpCircle, Clock, ShieldAlert, Timer, Compass, ArrowRight, Briefcase, Lock, Sparkles, AlertCircle } from 'lucide-react';
+import { statements, Statement, DimensionKey } from '../data/statements';
+import { ChevronLeft, ChevronRight, HelpCircle, Clock, ShieldAlert, Timer, Compass, ArrowRight, Briefcase, Lock, Sparkles, AlertCircle } from 'lucide-react';
 
 interface QuestionnaireProps {
   answers: Record<string, number>;
@@ -47,7 +47,7 @@ export default function Questionnaire({ answers, onAnswer, onComplete }: Questio
 
   const [secondsElapsed, setSecondsElapsed] = useState<Record<string, number>>({});
 
-  const [shuffledStatements, setShuffledStatements] = useState<Statement[]>(() => {
+  const [shuffledStatements] = useState<Statement[]>(() => {
     const savedOrder = localStorage.getItem('bigfive_prep_shuffled_ids');
     if (savedOrder) {
       try {
@@ -96,8 +96,6 @@ export default function Questionnaire({ answers, onAnswer, onComplete }: Questio
   const pageStartIndex = currentPage * itemsPerPage;
   const currentPageStatements = shuffledStatements.slice(pageStartIndex, pageStartIndex + itemsPerPage);
   const totalPages = Math.ceil(statements.length / itemsPerPage);
-
-  const isCurrentPageComplete = currentPageStatements.every(s => answers[s.id] !== undefined);
 
   const handleNext = () => {
     if (currentPage < totalPages - 1) {

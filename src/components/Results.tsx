@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { statements, DimensionKey, dimensionsData, bandsData, Statement } from '../data/statements';
-import { ChevronRight, Clipboard, Sparkles, AlertTriangle, HelpCircle, Lock } from 'lucide-react';
+import { statements, DimensionKey, dimensionsData, bandsData } from '../data/statements';
+import { ChevronRight, Sparkles, AlertTriangle, HelpCircle, Lock } from 'lucide-react';
 
 interface ResultsProps {
   answers: Record<string, number>;

@@ -23,7 +23,6 @@ import {
   BookMarked,
   Trash2,
   Home,
-  Check,
   Sparkles,
   MessageSquare,
   Ticket,

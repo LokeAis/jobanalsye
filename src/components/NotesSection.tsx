@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { DimensionKey, dimensionsData, statements } from '../data/statements';
 import { useFeedback } from '../ui/Feedback';
-import { Save, Printer, Download, BookOpen, Layers, CheckCircle, RefreshCw } from 'lucide-react';
+import { Printer, Download, BookOpen, CheckCircle, RefreshCw } from 'lucide-react';
 // pdfExport (jspdf + html2canvas) is imported dynamically in handleExportPdf so
 // the heavy libraries load only when the user actually exports a PDF.
 

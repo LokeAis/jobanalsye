@@ -8,6 +8,7 @@ import { initializeApp, cert, applicationDefault, getApps } from "firebase-admin
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import Stripe from "stripe";
+import helmet from "helmet";
 
 dotenv.config();
 
@@ -16,6 +17,18 @@ const PORT = Number(process.env.PORT) || 3000;
 
 // Behind Cloud Run / proxy we need the real client IP for rate limiting.
 app.set("trust proxy", 1);
+
+// Security headers. Clickjacking (X-Frame-Options), HSTS, nosniff, referrer-policy
+// osv. CSP er bevisst AV inntil vi kan teste Firebase-innlogging i nettleser med en
+// skreddersydd policy (feil CSP knekker auth-popup). COOP settes til
+// "same-origin-allow-popups" fordi Firebase signInWithPopup ellers brytes av COOP.
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
+    crossOriginEmbedderPolicy: false,
+  })
+);
 
 // --- Stripe webhook (MUST be registered before express.json) ---
 // Stripe signs the raw request body; any JSON parsing first would break
@@ -330,9 +343,18 @@ app.post("/api/create-checkout", requireAuth, async (req: AuthedRequest, res) =>
 
 // Manual top-up for Fase 1 (no payment yet). Guarded by a shared admin secret;
 // kept as an admin fallback now that the Stripe webhook handles purchases.
+// Constant-time string compare to avoid timing side-channels on the admin secret.
+function safeEqual(a: string, b: string): boolean {
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
 app.post("/api/admin/grant-credits", async (req, res) => {
   const secret = process.env.ADMIN_TOPUP_SECRET;
-  if (!secret || req.headers["x-admin-secret"] !== secret) {
+  const provided = req.headers["x-admin-secret"];
+  if (!secret || typeof provided !== "string" || !safeEqual(provided, secret)) {
     return res.status(403).json({ error: "Ikke autorisert." });
   }
   if (!ensureFirebase()) {
@@ -734,7 +756,7 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
-    app.get("*", (req, res) => {
+    app.get("*", (_req, res) => {
       res.sendFile(path.join(distPath, "index.html"));
     });
   }

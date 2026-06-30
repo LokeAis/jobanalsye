@@ -9,6 +9,11 @@ export default defineConfig(() => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
+        // jspdf sine ubrukte optionals (vi lager kun tekst-PDF) → tom stub for
+        // å holde ~230 KB ute av PDF-chunken.
+        'html2canvas': path.resolve(__dirname, 'src/stubs/empty.ts'),
+        'canvg': path.resolve(__dirname, 'src/stubs/empty.ts'),
+        'dompurify': path.resolve(__dirname, 'src/stubs/empty.ts'),
       },
     },
     server: {
