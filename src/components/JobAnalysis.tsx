@@ -3,7 +3,8 @@ import { statements, DimensionKey, dimensionsData, resolveDimensionKey } from '.
 import { usePremium } from '../premium/PremiumContext';
 import { useAuth } from '../auth/AuthContext';
 import { useFeedback } from '../ui/Feedback';
-import { 
+import CreditPurchase from './CreditPurchase';
+import {
   Briefcase, 
   Sparkles, 
   FileText, 
@@ -616,12 +617,15 @@ export default function JobAnalysis({ answers, notes, onSaveNote, onNavigateToTa
                     Logg inn for å kjøre AI-analyse (1 klipp)
                   </button>
                 ) : configured && (credits ?? 0) < 1 ? (
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-900 flex items-start gap-2">
-                    <Ticket className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                    <div>
-                      <span className="font-semibold block text-amber-950">Du har ingen klipp igjen</span>
-                      <span>Hver AI-jobbanalyse koster 1 klipp. Kjøp flere for å kjøre en ny analyse.</span>
+                  <div className="space-y-3">
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-900 flex items-start gap-2">
+                      <Ticket className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-semibold block text-amber-950">Du har ingen klipp igjen</span>
+                        <span>Hver AI-jobbanalyse koster 1 klipp. Kjøp flere for å kjøre en ny analyse.</span>
+                      </div>
                     </div>
+                    <CreditPurchase />
                   </div>
                 ) : (
                   <button

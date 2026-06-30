@@ -52,8 +52,30 @@ const STORAGE_KEYS = [
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>('home');
   const { isPremium, unlock, lock } = usePremium();
-  const { configured, loading, user, credits, signIn, signOut } = useAuth();
+  const { configured, loading, user, credits, signIn, signOut, refreshCredits } = useAuth();
   const { toast, confirm } = useFeedback();
+
+  // Handle return from Stripe Checkout (?kjop=ok / ?kjop=avbrutt).
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const kjop = params.get('kjop');
+    if (!kjop) return;
+    // Clean the URL so a refresh doesn't re-trigger this.
+    window.history.replaceState({}, '', window.location.pathname);
+    if (kjop === 'ok') {
+      toast('Takk for kjøpet! Klippene legges til om et øyeblikk.', 'success');
+      // The webhook credits the account asynchronously — poll the balance.
+      let tries = 0;
+      const tick = () => {
+        refreshCredits();
+        if (++tries < 4) setTimeout(tick, 2000);
+      };
+      setTimeout(tick, 1500);
+    } else if (kjop === 'avbrutt') {
+      toast('Kjøpet ble avbrutt – ingen klipp er trukket.', 'info');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   
   // 1. Load state from localStorage on init
   const [answers, setAnswers] = useState<Record<string, number>>(() => {

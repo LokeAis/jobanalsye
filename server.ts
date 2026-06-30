@@ -7,6 +7,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { initializeApp, cert, applicationDefault, getApps } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import Stripe from "stripe";
 
 dotenv.config();
 
@@ -15,6 +16,48 @@ const PORT = Number(process.env.PORT) || 3000;
 
 // Behind Cloud Run / proxy we need the real client IP for rate limiting.
 app.set("trust proxy", 1);
+
+// --- Stripe webhook (MUST be registered before express.json) ---
+// Stripe signs the raw request body; any JSON parsing first would break
+// signature verification. So this one route uses express.raw and is declared
+// ahead of the global JSON parser below.
+app.post(
+  "/api/stripe-webhook",
+  express.raw({ type: "application/json" }),
+  async (req, res) => {
+    const stripe = getStripe();
+    const whSecret = process.env.STRIPE_WEBHOOK_SECRET;
+    if (!stripe || !whSecret) {
+      return res.status(503).json({ error: "Betaling er ikke konfigurert." });
+    }
+    const sig = req.headers["stripe-signature"];
+    let event: Stripe.Event;
+    try {
+      event = stripe.webhooks.constructEvent(req.body, sig as string, whSecret);
+    } catch (e) {
+      console.error("Stripe webhook signature verification failed:", e);
+      return res.status(400).send("Ugyldig signatur.");
+    }
+
+    if (event.type === "checkout.session.completed") {
+      const session = event.data.object as Stripe.Checkout.Session;
+      const uid = session.metadata?.uid;
+      const credits = Number(session.metadata?.credits);
+      const email = session.metadata?.email || session.customer_details?.email || "";
+      if (uid && Number.isFinite(credits) && credits > 0 && ensureFirebase()) {
+        try {
+          await grantCreditsIdempotent(event.id, uid, email, credits);
+        } catch (e) {
+          console.error("Stripe webhook credit grant failed:", e);
+          // 500 so Stripe retries the delivery.
+          return res.status(500).json({ error: "Kunne ikke kreditere klipp." });
+        }
+      }
+    }
+
+    res.json({ received: true });
+  }
+);
 
 // Cap request body size to prevent oversized payloads inflating Gemini token cost.
 app.use(express.json({ limit: "32kb" }));
@@ -77,6 +120,61 @@ function getGeminiClient(): GoogleGenAI {
     });
   }
   return aiClient;
+}
+
+// --- Stripe (Fase 2: selvbetjent kjøp av klipp) ---
+// Lazy client so the server boots without Stripe configured (checkout endpoints
+// then return 503 and the UI shows "kommer snart").
+let stripeClient: Stripe | null = null;
+function getStripe(): Stripe | null {
+  if (stripeClient) return stripeClient;
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) return null;
+  stripeClient = new Stripe(key);
+  return stripeClient;
+}
+function isStripeConfigured(): boolean {
+  return Boolean(process.env.STRIPE_SECRET_KEY && process.env.STRIPE_WEBHOOK_SECRET);
+}
+
+// Klippepakker. PRISENE ER FORELØPIGE — må finjusteres etter prissjekk før live.
+// amountNok er i hele kroner; Stripe får beløpet i øre (×100).
+interface CreditPackage {
+  id: string;
+  credits: number;
+  amountNok: number;
+  label: string;
+}
+const CREDIT_PACKAGES: CreditPackage[] = [
+  { id: "single", credits: 1, amountNok: 49, label: "1 klipp" },
+  { id: "triple", credits: 3, amountNok: 99, label: "3 klipp" },
+];
+
+// Add credits to a user exactly once per Stripe event (idempotent). The event id
+// is recorded in its own doc inside the same transaction, so a webhook retry
+// (or duplicate delivery) can never double-credit.
+async function grantCreditsIdempotent(
+  eventId: string,
+  uid: string,
+  email: string,
+  credits: number
+): Promise<void> {
+  const db = getFirestore();
+  await db.runTransaction(async (tx) => {
+    const evRef = db.collection("stripeEvents").doc(eventId);
+    const userRef = db.collection("users").doc(uid);
+    // All reads before any writes (Firestore requirement).
+    const evSnap = await tx.get(evRef);
+    if (evSnap.exists) return; // already processed
+    const userSnap = await tx.get(userRef);
+    const current = (userSnap.data()?.credits as number) ?? 0;
+    tx.set(
+      userRef,
+      { email, credits: current + credits, updatedAt: FieldValue.serverTimestamp() },
+      { merge: true }
+    );
+    tx.set(evRef, { uid, credits, processedAt: FieldValue.serverTimestamp() });
+  });
 }
 
 // --- Firebase Admin (auth + Firestore credit ledger) ---
@@ -174,8 +272,61 @@ app.get("/api/me", requireAuth, async (req: AuthedRequest, res) => {
   }
 });
 
+// Available credit packages + whether self-service purchase is live. Public so
+// the UI can render prices (single source of truth) and fall back gracefully.
+app.get("/api/credit-packages", (_req, res) => {
+  res.json({
+    configured: isStripeConfigured(),
+    packages: CREDIT_PACKAGES.map(({ id, credits, amountNok, label }) => ({
+      id,
+      credits,
+      amountNok,
+      label,
+    })),
+  });
+});
+
+// Create a Stripe Checkout session for the chosen package. Credits are NOT
+// granted here — only after the signed webhook confirms payment.
+app.post("/api/create-checkout", requireAuth, async (req: AuthedRequest, res) => {
+  const stripe = getStripe();
+  if (!stripe) {
+    return res.status(503).json({ error: "Betaling er ikke tilgjengelig ennå." });
+  }
+  const pkg = CREDIT_PACKAGES.find((p) => p.id === req.body?.packageId);
+  if (!pkg) {
+    return res.status(400).json({ error: "Ukjent pakke." });
+  }
+  try {
+    const origin =
+      (req.headers.origin as string) ||
+      `${req.protocol}://${req.headers.host}`;
+    const session = await stripe.checkout.sessions.create({
+      mode: "payment",
+      line_items: [
+        {
+          price_data: {
+            currency: "nok",
+            product_data: { name: `Big Five Forberedelse – ${pkg.label}` },
+            unit_amount: pkg.amountNok * 100,
+          },
+          quantity: 1,
+        },
+      ],
+      metadata: { uid: req.uid!, credits: String(pkg.credits), email: req.userEmail || "" },
+      customer_email: req.userEmail || undefined,
+      success_url: `${origin}/?kjop=ok`,
+      cancel_url: `${origin}/?kjop=avbrutt`,
+    });
+    res.json({ url: session.url });
+  } catch (e) {
+    console.error("create-checkout failed:", e);
+    res.status(500).json({ error: "Kunne ikke starte betaling." });
+  }
+});
+
 // Manual top-up for Fase 1 (no payment yet). Guarded by a shared admin secret;
-// will be replaced by a Stripe webhook in Fase 2.
+// kept as an admin fallback now that the Stripe webhook handles purchases.
 app.post("/api/admin/grant-credits", async (req, res) => {
   const secret = process.env.ADMIN_TOPUP_SECRET;
   if (!secret || req.headers["x-admin-secret"] !== secret) {

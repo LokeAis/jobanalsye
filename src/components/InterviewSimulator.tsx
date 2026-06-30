@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { statements, DimensionKey } from '../data/statements';
 import { MessageSquare, Send, RefreshCw, Lock, ArrowRight, Bot, User, ShieldAlert, Sparkles, Ticket } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
+import CreditPurchase from './CreditPurchase';
 
 interface InterviewSimulatorProps {
   answers: Record<string, number>;
@@ -155,6 +156,7 @@ export default function InterviewSimulator({ answers, onNavigateToTab }: Intervi
               Et øvingsintervju koster 1 klipp. Kjøp flere klipp for å starte en ny intervjuøkt.
             </p>
           </div>
+          <CreditPurchase />
         </div>
       </div>
     );
