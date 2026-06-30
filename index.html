@@ -48,7 +48,74 @@
     </script>
   </head>
   <body>
-    <div id="root"></div>
+    <!--
+      Statisk landingsinnhold for crawlere/sosiale bots (som ikke kjorer JS).
+      React (createRoot i src/main.tsx) forkaster dette ved montering, sa ekte
+      brukere far appen. SPEILER src/components/LandingPage.tsx — oppdater BEGGE
+      steder ved tekstendringer.
+    -->
+    <div id="root">
+      <main class="max-w-4xl mx-auto py-6 px-4">
+        <h1 class="text-3xl sm:text-4xl md:text-5xl font-extrabold text-slate-900 tracking-tight mb-4">
+          Big Five Rekrutteringstentamen
+        </h1>
+        <p class="text-base sm:text-lg text-slate-600 leading-relaxed mb-6">
+          Skal du gjennomgå en personlighetskartlegging (MAP, OPQ32, cut-e) til en jobb?
+          Dette er din realistiske generalprøve for å trene på å svare raskt, ærlig og
+          konsistent under press. Test, profil og notater er gratis og lagres kun lokalt i
+          nettleseren din. Den valgfrie AI-jobbanalysen matcher profilen din mot en konkret
+          stilling.
+        </p>
+
+        <h2 class="text-xl font-bold text-slate-900 mt-10 mb-4">Slik fungerer generalprøven</h2>
+
+        <h3 class="font-semibold text-slate-900 mb-1">1. Forstå spillereglene</h3>
+        <p class="text-slate-600 leading-relaxed mb-4">
+          Få en nøytral og realistisk innføring i de fem personlighetsdimensjonene. Lær
+          nøyaktig hva høye og lave skårer betyr i arbeidskontekst.
+        </p>
+
+        <h3 class="font-semibold text-slate-900 mb-1">2. Presstrening under tid</h3>
+        <p class="text-slate-600 leading-relaxed mb-4">
+          Svar på 60 jobbrelaterte påstander. Velg «Realistisk modus» for å overvinne
+          overtenking ved hjelp av en tidsindikator per påstand.
+        </p>
+
+        <h3 class="font-semibold text-slate-900 mb-1">3. Omfattende debrief</h3>
+        <p class="text-slate-600 leading-relaxed mb-6">
+          Avdekk sprik mellom selvbilde og faktiske svar, identifiser konsistens-avvik, og
+          motta rekruttererens sannsynlige oppfølgingsspørsmål.
+        </p>
+
+        <h2 class="text-xl font-bold text-slate-900 mt-10 mb-3">Hvorfor ta en tentamen før testen?</h2>
+        <p class="text-slate-600 leading-relaxed mb-3">
+          Målet med en personlighetstest (som MAP eller OPQ32) er ikke å få høyest mulig skår
+          på alt. Det finnes ingen fasit, og forskjellige stillinger krever helt ulik atferd.
+        </p>
+        <p class="text-slate-600 leading-relaxed mb-6">
+          I en rekrutteringsprosess er det lett å ville fremstå «perfekt», men dette slår
+          uheldig ut på testenes validitets- og konsistensmålinger. Generalprøven hjelper deg
+          med å bli godt nok kjent med egne tendenser til å svare raskt, ærlig og konsistent
+          under det reelle presset.
+        </p>
+
+        <p class="text-sm text-slate-500 mb-6">
+          Personvern: Test, profil og notater lagres kun lokalt i nettleseren din. Den
+          valgfrie AI-jobbanalysen sender stillingsinfo og dine Big Five-skårer til Google
+          Gemini for å generere rapporten.
+        </p>
+
+        <a href="/" class="inline-block bg-teal-700 text-white font-bold px-6 py-3 rounded-lg">
+          Start din generalprøve
+        </a>
+
+        <p class="text-xs text-amber-800 mt-8 max-w-2xl">
+          ⚠️ Viktig: Dette er et øvingsverktøy for selvinnsikt og forberedelse, ikke en
+          offisiell test. Det er ikke tilknyttet Assessio og skal ikke brukes til
+          ansettelsesbeslutninger.
+        </p>
+      </main>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

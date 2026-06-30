@@ -92,9 +92,9 @@ export default function LandingPage({ onStart, onViewOverview, completedCount }:
         <div className="flex items-start gap-4">
           <Shield className="w-6 h-6 text-slate-500 shrink-0 mt-1" />
           <div>
-            <h4 className="font-semibold text-slate-900 text-sm mb-1">100% trygt og privat</h4>
+            <h4 className="font-semibold text-slate-900 text-sm mb-1">Test og notater er 100 % lokale</h4>
             <p className="text-slate-600 text-xs sm:text-sm leading-relaxed">
-              Ingen data blir sendt over internett. Alle svar, gjetninger, valgt modus og personlige notater lagres kun lokalt i din egen nettlesers minne (localStorage). Du kan når som helst slette alt permanent.
+              Alle svar, gjetninger, valgt modus og personlige notater lagres kun lokalt i din egen nettlesers minne (localStorage), og kan slettes permanent når som helst. Den valgfrie AI-jobbanalysen sender stillingsinfo og dine Big Five-skårer til Google Gemini for å generere rapporten — resten av appen fungerer uten den.
             </p>
           </div>
         </div>
