@@ -8,6 +8,7 @@ interface CreditPackage {
   credits: number;
   amountNok: number;
   label: string;
+  badge?: string;
 }
 
 /**
@@ -80,7 +81,7 @@ export default function CreditPurchase({ compact = false }: { compact?: boolean 
   }
 
   return (
-    <div className={compact ? 'space-y-2' : 'grid sm:grid-cols-2 gap-3'}>
+    <div className={compact ? 'space-y-2' : 'grid sm:grid-cols-3 gap-3'}>
       {packages.map((pkg) => {
         const perClip = Math.round(pkg.amountNok / pkg.credits);
         return (
@@ -88,8 +89,17 @@ export default function CreditPurchase({ compact = false }: { compact?: boolean 
             key={pkg.id}
             onClick={() => buy(pkg)}
             disabled={busyId !== null}
-            className="flex items-center justify-between gap-3 bg-white border border-amber-200 hover:border-amber-300 hover:bg-amber-50/40 rounded-xl p-4 transition text-left disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            className={`relative flex items-center justify-between gap-3 bg-white rounded-xl p-4 transition text-left disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${
+              pkg.badge
+                ? 'border-2 border-amber-300 hover:border-amber-400 hover:bg-amber-50/40'
+                : 'border border-amber-200 hover:border-amber-300 hover:bg-amber-50/40'
+            }`}
           >
+            {pkg.badge && (
+              <span className="absolute -top-2 left-3 bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                {pkg.badge}
+              </span>
+            )}
             <span className="flex items-center gap-3">
               <span className="w-9 h-9 bg-amber-50 border border-amber-100 rounded-lg flex items-center justify-center text-amber-600 shrink-0">
                 {busyId === pkg.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Ticket className="w-4 h-4" />}

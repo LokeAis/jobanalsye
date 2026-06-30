@@ -144,10 +144,12 @@ interface CreditPackage {
   credits: number;
   amountNok: number;
   label: string;
+  badge?: string;
 }
 const CREDIT_PACKAGES: CreditPackage[] = [
   { id: "single", credits: 1, amountNok: 49, label: "1 klipp" },
-  { id: "triple", credits: 3, amountNok: 99, label: "3 klipp" },
+  { id: "triple", credits: 3, amountNok: 99, label: "3 klipp", badge: "Mest populær" },
+  { id: "ten", credits: 10, amountNok: 249, label: "10 klipp", badge: "Beste verdi" },
 ];
 
 // Add credits to a user exactly once per Stripe event (idempotent). The event id
@@ -277,11 +279,12 @@ app.get("/api/me", requireAuth, async (req: AuthedRequest, res) => {
 app.get("/api/credit-packages", (_req, res) => {
   res.json({
     configured: isStripeConfigured(),
-    packages: CREDIT_PACKAGES.map(({ id, credits, amountNok, label }) => ({
+    packages: CREDIT_PACKAGES.map(({ id, credits, amountNok, label, badge }) => ({
       id,
       credits,
       amountNok,
       label,
+      badge,
     })),
   });
 });
