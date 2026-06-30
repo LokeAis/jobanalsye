@@ -314,9 +314,10 @@ app.post("/api/create-checkout", requireAuth, async (req: AuthedRequest, res) =>
     return res.status(400).json({ error: "Ukjent pakke." });
   }
   try {
-    const origin =
-      (req.headers.origin as string) ||
-      `${req.protocol}://${req.headers.host}`;
+    // Build redirect URLs from server-trusted values, never the client-controlled
+    // Origin header. APP_URL (prod) tar forrang, ellers verten requesten faktisk
+    // traff (paalitelig bak Cloud Run med trust proxy).
+    const origin = process.env.APP_URL || `${req.protocol}://${req.headers.host}`;
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       line_items: [
@@ -606,9 +607,17 @@ const MAX_INTERVIEW_TURNS = 24; // ~12 question/answer pairs per paid session
 // Stateless, server-signed interview session. The session token carries the
 // remaining turn budget and is HMAC-signed so the client can't forge it or
 // reset the count — this prevents bypassing the per-session credit charge by
-// sending a crafted message history. SESSION_SECRET should be set in prod; if
-// absent we use a per-boot random secret (sessions reset on restart).
-const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString("hex");
+// sending a crafted message history.
+//
+// In production SESSION_SECRET MUST be set: with several Cloud Run instances each
+// would otherwise pick its own per-boot secret, so a token signed by one instance
+// fails verification on another and interviews break unpredictably. Fail fast so a
+// misconfigured deploy is caught immediately rather than silently degrading.
+if (process.env.NODE_ENV === "production" && !process.env.SESSION_SECRET) {
+  throw new Error("SESSION_SECRET må være satt i produksjon (ellers brytes intervju-økter på tvers av instanser).");
+}
+const SESSION_SECRET =
+  process.env.SESSION_SECRET || crypto.randomBytes(32).toString("hex");
 
 interface SessionPayload {
   uid: string;

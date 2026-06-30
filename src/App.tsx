@@ -72,7 +72,12 @@ export default function App() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  
+
+  // One-time cleanup: the old premium concept left an orphan localStorage key.
+  useEffect(() => {
+    localStorage.removeItem('bigfive_prep_premium');
+  }, []);
+
   // 1. Load state from localStorage on init
   const [answers, setAnswers] = useState<Record<string, number>>(() => {
     const saved = localStorage.getItem('bigfive_prep_answers');
