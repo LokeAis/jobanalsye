@@ -5,6 +5,9 @@ import {
   computeDimensionScore,
   getBand,
   resolveDimensionKey,
+  toPOMP,
+  INTEGRITY_KEY,
+  integrityInfo,
   type DimensionKey,
 } from './statements';
 
@@ -62,6 +65,50 @@ describe('computeDimensionScore', () => {
     for (const d of DIMS) {
       expect(computeDimensionScore(d, high)).toBeCloseTo(5.0);
       expect(computeDimensionScore(d, low)).toBeCloseTo(1.0);
+    }
+  });
+});
+
+describe('toPOMP', () => {
+  it('mapper 1–5 til 0–100 lineært', () => {
+    expect(toPOMP(1)).toBe(0);
+    expect(toPOMP(3)).toBe(50);
+    expect(toPOMP(5)).toBe(100);
+    expect(toPOMP(2)).toBe(25);
+    expect(toPOMP(4)).toBe(75);
+  });
+  it('klamrer utenfor 0–100', () => {
+    expect(toPOMP(0)).toBe(0);
+    expect(toPOMP(6)).toBe(100);
+  });
+});
+
+describe('integritetsskala', () => {
+  const integrityStatements = statements.filter((s) => s.dimensjon === 'integritet');
+
+  it('har egne påstander som ikke lekker inn i Big Five', () => {
+    expect(integrityStatements.length).toBeGreaterThanOrEqual(10);
+    // Ingen av de 5 Big Five-dimensjonene inneholder integritetsledd.
+    for (const d of DIMS) {
+      expect(statements.filter((s) => s.dimensjon === d).every((s) => s.dimensjon !== 'integritet')).toBe(true);
+    }
+  });
+
+  it('computeDimensionScore(integritet) gir 5.0 / 1.0 ved maks / min (reverskoding)', () => {
+    const high: Record<string, number> = {};
+    const low: Record<string, number> = {};
+    for (const s of integrityStatements) {
+      high[s.id] = s.keyed === 'negativ' ? 1 : 5;
+      low[s.id] = s.keyed === 'negativ' ? 5 : 1;
+    }
+    expect(computeDimensionScore(INTEGRITY_KEY, high)).toBeCloseTo(5.0);
+    expect(computeDimensionScore(INTEGRITY_KEY, low)).toBeCloseTo(1.0);
+  });
+
+  it('integrityInfo har tolkning + tips for alle bånd', () => {
+    for (const band of ['Lav', 'Moderat', 'Høy'] as const) {
+      expect(integrityInfo.bands[band].interpretation.length).toBeGreaterThan(0);
+      expect(integrityInfo.bands[band].prepTip.length).toBeGreaterThan(0);
     }
   });
 });

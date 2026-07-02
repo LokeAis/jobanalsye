@@ -9,6 +9,13 @@ import { getAuth } from "firebase-admin/auth";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import Stripe from "stripe";
 import helmet from "helmet";
+import cors from "cors";
+import {
+  safeEqual,
+  signSession,
+  verifySession,
+  CREDIT_PACKAGES,
+} from "./server-utils.js";
 
 dotenv.config();
 
@@ -19,16 +26,63 @@ const PORT = Number(process.env.PORT) || 3000;
 app.set("trust proxy", 1);
 
 // Security headers. Clickjacking (X-Frame-Options), HSTS, nosniff, referrer-policy
-// osv. CSP er bevisst AV inntil vi kan teste Firebase-innlogging i nettleser med en
-// skreddersydd policy (feil CSP knekker auth-popup). COOP er AV fordi den (selv som
-// "same-origin-allow-popups") forstyrrer Firebase signInWithPopup sine window.closed/
-// window.close-kall mot Google-popupen. Vi bruker ikke cross-origin-isolering, saa
-// COOP gir oss ingen beskyttelse vi trenger.
+// osv.
+//
+// CSP: PAA og haandhevende i produksjon. Rullet ut i to faser: foerst Report-Only,
+// deretter verifisert ren konsoll gjennom hele innloggings-, kjoeps- og AI-flyten
+// (2026-07-02) foer haandheving. Domenene er kartlagt mot appens faktiske
+// avhengigheter: Google Fonts (style/font), Firebase Auth-popup
+// (*.firebaseapp.com, apis/accounts.google.com, *.googleapis.com). CSP er AV i dev
+// fordi Vite HMR trenger unsafe-eval + ws:. Endres policyen senere: test alltid
+// via en ny Report-Only-runde foerst (feil CSP knekker innlogging stille).
+//
+// COOP/COEP er AV fordi COOP (selv "same-origin-allow-popups") forstyrrer Firebase
+// signInWithPopup sine window.closed/window.close-kall mot Google-popupen. Vi bruker
+// ikke cross-origin-isolering, saa COOP gir oss ingen beskyttelse vi trenger.
+const isProd = process.env.NODE_ENV === "production";
 app.use(
   helmet({
-    contentSecurityPolicy: false,
+    contentSecurityPolicy: isProd
+      ? {
+          useDefaults: true,
+          reportOnly: false, // FASE 2 (2026-07-02): haandhevende. Verifisert ren konsoll gjennom innlogging + kjoepsmodal + AI-analyse i Report-Only-fasen.
+          directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'", "https://apis.google.com"],
+            styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+            fontSrc: ["'self'", "https://fonts.gstatic.com"],
+            imgSrc: ["'self'", "data:"],
+            connectSrc: [
+              "'self'",
+              "https://*.googleapis.com", // identitytoolkit, securetoken, firestore, www
+              "https://*.firebaseapp.com",
+            ],
+            frameSrc: [
+              "'self'",
+              "https://*.firebaseapp.com",
+              "https://apis.google.com",
+              "https://accounts.google.com",
+            ],
+            objectSrc: ["'none'"],
+            baseUri: ["'self'"],
+            formAction: ["'self'"],
+          },
+        }
+      : false, // dev: Vite HMR trenger unsafe-eval + ws:, hold CSP av
     crossOriginOpenerPolicy: false,
     crossOriginEmbedderPolicy: false,
+  })
+);
+
+// CORS: only allow requests from our own origin. In dev Vite proxies everything
+// through the same port so the default (same-origin) works; in production we
+// lock it to APP_URL. The Stripe webhook must pass through regardless (Stripe
+// doesn't send an Origin header, so it's unaffected by the allowlist).
+const ALLOWED_ORIGIN = process.env.APP_URL || `http://localhost:${PORT}`;
+app.use(
+  cors({
+    origin: ALLOWED_ORIGIN,
+    credentials: true,
   })
 );
 
@@ -144,6 +198,34 @@ function getGeminiClient(): GoogleGenAI {
   return aiClient;
 }
 
+// Modellvalg med fallback. Primærmodellen er en preview-modell Google kan fjerne
+// uten varsel; uten fallback ville begge betalte AI-funksjoner dø samtidig og
+// kreve ny deploy. Ved "model not found" bytter vi varig (per instans) til den
+// stabile fallbacken, så bare det første kallet betaler dobbel latens.
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3-flash-preview";
+const GEMINI_FALLBACK_MODEL = "gemini-2.5-flash";
+let activeGeminiModel = GEMINI_MODEL;
+
+async function generateWithFallback(
+  ai: GoogleGenAI,
+  request: { contents: any; config?: any }
+) {
+  try {
+    return await ai.models.generateContent({ model: activeGeminiModel, ...request });
+  } catch (e: any) {
+    const msg = String(e?.message ?? e);
+    const modelGone = msg.includes("404") || /is not found/i.test(msg);
+    if (modelGone && activeGeminiModel !== GEMINI_FALLBACK_MODEL) {
+      console.error(
+        `Gemini-modellen "${activeGeminiModel}" er utilgjengelig — bytter til fallback "${GEMINI_FALLBACK_MODEL}".`
+      );
+      activeGeminiModel = GEMINI_FALLBACK_MODEL;
+      return await ai.models.generateContent({ model: activeGeminiModel, ...request });
+    }
+    throw e;
+  }
+}
+
 // --- Stripe (Fase 2: selvbetjent kjøp av klipp) ---
 // Lazy client so the server boots without Stripe configured (checkout endpoints
 // then return 503 and the UI shows "kommer snart").
@@ -159,20 +241,7 @@ function isStripeConfigured(): boolean {
   return Boolean(process.env.STRIPE_SECRET_KEY && process.env.STRIPE_WEBHOOK_SECRET);
 }
 
-// Klippepakker. PRISENE ER FORELØPIGE — må finjusteres etter prissjekk før live.
-// amountNok er i hele kroner; Stripe får beløpet i øre (×100).
-interface CreditPackage {
-  id: string;
-  credits: number;
-  amountNok: number;
-  label: string;
-  badge?: string;
-}
-const CREDIT_PACKAGES: CreditPackage[] = [
-  { id: "single", credits: 1, amountNok: 49, label: "1 klipp" },
-  { id: "triple", credits: 3, amountNok: 99, label: "3 klipp", badge: "Mest populær" },
-  { id: "ten", credits: 10, amountNok: 249, label: "10 klipp", badge: "Beste verdi" },
-];
+// Klippepakker importeres fra server-utils.ts (single source of truth).
 
 // Add credits to a user exactly once per Stripe event (idempotent). The event id
 // is recorded in its own doc inside the same transaction, so a webhook retry
@@ -200,6 +269,11 @@ async function grantCreditsIdempotent(
       { merge: true }
     );
     tx.set(evRef, { uid, credits, processedAt: FieldValue.serverTimestamp() });
+    tx.set(
+      db.collection("analyticsDaily").doc(todayKey()),
+      { purchase_completed: FieldValue.increment(1) },
+      { merge: true }
+    );
     return true;
   });
 }
@@ -381,6 +455,39 @@ app.get("/api/credit-packages", (_req, res) => {
   });
 });
 
+// --- Aggregate analytics (no third-party tracker, no per-user tracking). One
+// Firestore doc per UTC day with an incremented counter per event type. Deliberately
+// unauthenticated (anonymous test-takers must be countable), but rate-limited and
+// restricted to a fixed allow-list so the endpoint can't be used to write arbitrary
+// fields. Purchases are counted for free inside grantCreditsIdempotent() below —
+// no client call needed for that event.
+const todayKey = () => new Date().toISOString().slice(0, 10); // YYYY-MM-DD (UTC)
+const TRACKABLE_EVENTS = new Set([
+  "test_started",
+  "test_completed",
+  "job_analysis_run",
+  "interview_started",
+]);
+
+app.post("/api/track", rateLimit, async (req, res) => {
+  const event = req.body?.event;
+  if (typeof event !== "string" || !TRACKABLE_EVENTS.has(event)) {
+    return res.status(400).json({ error: "Ukjent hendelse." });
+  }
+  if (!ensureFirebase()) return res.json({ ok: false });
+  try {
+    await getFirestore()
+      .collection("analyticsDaily")
+      .doc(todayKey())
+      .set({ [event]: FieldValue.increment(1) }, { merge: true });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error("track failed:", e);
+    // Never let a tracking hiccup surface as a user-facing error.
+    res.json({ ok: false });
+  }
+});
+
 // Create a Stripe Checkout session for the chosen package. Credits are NOT
 // granted here — only after the signed webhook confirms payment.
 app.post("/api/create-checkout", requireAuth, async (req: AuthedRequest, res) => {
@@ -411,6 +518,7 @@ app.post("/api/create-checkout", requireAuth, async (req: AuthedRequest, res) =>
       ],
       metadata: { uid: req.uid!, credits: String(pkg.credits), email: req.userEmail || "" },
       customer_email: req.userEmail || undefined,
+      allow_promotion_codes: true,
       success_url: `${origin}/?kjop=ok`,
       cancel_url: `${origin}/?kjop=avbrutt`,
     });
@@ -423,15 +531,7 @@ app.post("/api/create-checkout", requireAuth, async (req: AuthedRequest, res) =>
 
 // Manual top-up for Fase 1 (no payment yet). Guarded by a shared admin secret;
 // kept as an admin fallback now that the Stripe webhook handles purchases.
-// Constant-time string compare to avoid timing side-channels on the admin secret.
-function safeEqual(a: string, b: string): boolean {
-  const bufA = Buffer.from(a);
-  const bufB = Buffer.from(b);
-  if (bufA.length !== bufB.length) return false;
-  return crypto.timingSafeEqual(bufA, bufB);
-}
-
-app.post("/api/admin/grant-credits", async (req, res) => {
+app.post("/api/admin/grant-credits", rateLimit, async (req, res) => {
   const secret = process.env.ADMIN_TOPUP_SECRET;
   const provided = req.headers["x-admin-secret"];
   if (!secret || typeof provided !== "string" || !safeEqual(provided, secret)) {
@@ -517,8 +617,7 @@ ${personalitySummary}
 Analyser hvordan kandidatens personlighetsprofil vil passe inn i denne jobben. Svaret må være på profesjonelt, oppmuntrende og konstruktivt norsk, og returneres i nøyaktig det forespurte JSON-formatet.
 `;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+    const response = await generateWithFallback(ai, {
       contents: prompt,
       config: {
         systemInstruction: `Du er en erfaren norsk rekrutteringsrådgiver. Du får en kandidats Big Five-profil (gjennomsnittsskår 1–5 per dimensjon) og en stillingsbeskrivelse. Målet er å hjelpe kandidaten å forberede seg ÆRLIG til intervju og ekte test — ikke å lære dem å fremstå som noe de ikke er.
@@ -688,47 +787,14 @@ const MAX_CHAT_MESSAGES = 40;
 const MAX_CHAT_CONTENT_LEN = 4000;
 const MAX_INTERVIEW_TURNS = 24; // ~12 question/answer pairs per paid session
 
-// Stateless, server-signed interview session. The session token carries the
-// remaining turn budget and is HMAC-signed so the client can't forge it or
-// reset the count — this prevents bypassing the per-session credit charge by
-// sending a crafted message history.
-//
 // In production SESSION_SECRET MUST be set: with several Cloud Run instances each
 // would otherwise pick its own per-boot secret, so a token signed by one instance
-// fails verification on another and interviews break unpredictably. Fail fast so a
-// misconfigured deploy is caught immediately rather than silently degrading.
+// fails verification on another and interviews break unpredictably.
 if (process.env.NODE_ENV === "production" && !process.env.SESSION_SECRET) {
   throw new Error("SESSION_SECRET må være satt i produksjon (ellers brytes intervju-økter på tvers av instanser).");
 }
 const SESSION_SECRET =
   process.env.SESSION_SECRET || crypto.randomBytes(32).toString("hex");
-
-interface SessionPayload {
-  uid: string;
-  turnsLeft: number;
-  iat: number;
-}
-
-function signSession(payload: SessionPayload): string {
-  const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
-  const sig = crypto.createHmac("sha256", SESSION_SECRET).update(body).digest("base64url");
-  return `${body}.${sig}`;
-}
-
-function verifySession(token: unknown): SessionPayload | null {
-  if (typeof token !== "string" || !token.includes(".")) return null;
-  const [body, sig] = token.split(".");
-  const expected = crypto.createHmac("sha256", SESSION_SECRET).update(body).digest("base64url");
-  // Constant-time comparison.
-  const a = Buffer.from(sig);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
-  try {
-    return JSON.parse(Buffer.from(body, "base64url").toString()) as SessionPayload;
-  } catch {
-    return null;
-  }
-}
 
 app.post("/api/interview-chat", rateLimit, requireAuth, async (req: AuthedRequest, res) => {
   try {
@@ -747,7 +813,7 @@ app.post("/api/interview-chat", rateLimit, requireAuth, async (req: AuthedReques
       }
       turnsLeft = MAX_INTERVIEW_TURNS;
     } else {
-      const payload = verifySession(session);
+      const payload = verifySession(SESSION_SECRET, session);
       if (!payload || payload.uid !== req.uid) {
         return res.status(400).json({ error: "Ugyldig intervjuøkt. Start et nytt intervju." });
       }
@@ -796,8 +862,7 @@ app.post("/api/interview-chat", rateLimit, requireAuth, async (req: AuthedReques
     }
 
     const ai = getGeminiClient();
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+    const response = await generateWithFallback(ai, {
       contents,
       config: {
         systemInstruction: `Du er en erfaren, vennlig men grundig norsk rekrutterer som holder et strukturert jobbintervju med kandidaten. Du øver kandidaten foran et ekte intervju.
@@ -832,7 +897,7 @@ Regler:
       }
     }
     const newTurnsLeft = turnsLeft - 1;
-    const newSession = signSession({ uid: req.uid!, turnsLeft: newTurnsLeft, iat: Date.now() });
+    const newSession = signSession(SESSION_SECRET, { uid: req.uid!, turnsLeft: newTurnsLeft, iat: Date.now() });
     res.json({ reply, session: newSession, turnsLeft: newTurnsLeft, _credits: remaining });
   } catch (error: any) {
     console.error("Interview chat error:", error);

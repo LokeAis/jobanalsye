@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { dimensionsData, DimensionKey } from '../data/statements';
+import { dimensionsData, DimensionKey, statements } from '../data/statements';
 import { ChevronDown, ChevronUp, Layers, Activity, Users, Heart, Lightbulb } from 'lucide-react';
 
 export default function BigFiveOverview() {
@@ -149,7 +149,7 @@ export default function BigFiveOverview() {
       <div className="mt-10 p-6 bg-slate-50 rounded-xl text-center border border-slate-200/60">
         <h3 className="font-semibold text-slate-900 text-base mb-2">Klar for å reflektere over egne tendenser?</h3>
         <p className="text-slate-600 text-sm mb-4 max-w-xl mx-auto">
-          Ved å svare på 60 korte påstander kan du se din egen personlighetsprofil basert på dine svar. 
+          Ved å svare på {statements.length} korte påstander kan du se din egen personlighetsprofil basert på dine svar.
           Husk at målet er ærlig og konsistent selvinnsikt, ikke å svare "perfekt".
         </p>
       </div>

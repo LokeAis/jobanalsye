@@ -27,7 +27,10 @@ $pairs = foreach ($k in $required) {
     "$k=$($envVars[$k])"
 }
 # Valgfrie Stripe-nokler: tas bare med hvis de er satt (tomme = "kjop kommer snart").
-$optional = @("STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET")
+# APP_URL brukes til CORS-origin og Stripe-redirects. Hardkodet til Cloud Run-URLen
+# saa lenge vi ikke har eget domene.
+$pairs += "APP_URL=https://bigfive-266007835585.europe-north1.run.app"
+$optional = @("STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "RESEND_API_KEY", "EMAIL_FROM", "SUPPORT_EMAIL", "GEMINI_MODEL")
 foreach ($k in $optional) {
     if ($envVars.ContainsKey($k) -and $envVars[$k]) { $pairs += "$k=$($envVars[$k])" }
 }

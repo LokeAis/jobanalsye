@@ -211,7 +211,7 @@ export default function Questionnaire({ answers, onAnswer, onComplete }: Questio
                 Generalprøve før rekrutteringstest
               </h2>
               <p className="text-slate-500 text-sm mt-1">
-                Velkommen til din personlige tentamen. Dette verktøyet ruster deg til å ta ekte tester som OPQ32, MAP og cut-e.
+                Velkommen til generalprøven. Dette verktøyet ruster deg til å ta ekte tester som OPQ32, MAP og Aon/cut-e.
               </p>
             </div>
 
@@ -519,7 +519,7 @@ export default function Questionnaire({ answers, onAnswer, onComplete }: Questio
             </p>
           </div>
           <span className="text-xs font-semibold text-teal-800 bg-teal-50 px-2.5 py-1 border border-teal-100 rounded-full shrink-0">
-            Besvart {answeredCount} av 60 ({progressPercent}%)
+            Besvart {answeredCount} av {statements.length} ({progressPercent}%)
           </span>
         </div>
         

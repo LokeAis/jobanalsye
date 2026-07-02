@@ -1,8 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { statements, DimensionKey, computeDimensionScore, getBand } from '../data/statements';
-import { MessageSquare, Send, RefreshCw, Lock, ArrowRight, Bot, User, ShieldAlert, Sparkles, Ticket } from 'lucide-react';
+import { MessageSquare, Send, RefreshCw, Lock, ArrowRight, Bot, User, ShieldAlert, Sparkles, Ticket, Download } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import CreditPurchase from './CreditPurchase';
+import AiConsentNotice, { hasAiConsent } from './AiConsentNotice';
+import { track } from '../utils/track';
 
 interface InterviewSimulatorProps {
   answers: Record<string, number>;
@@ -28,6 +30,7 @@ export default function InterviewSimulator({ answers, onNavigateToTab }: Intervi
   const [started, setStarted] = useState(false);
   const [session, setSession] = useState<string | null>(null);
   const [turnsLeft, setTurnsLeft] = useState<number | null>(null);
+  const [aiConsent, setAiConsent] = useState<boolean>(() => hasAiConsent());
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -46,7 +49,7 @@ export default function InterviewSimulator({ answers, onNavigateToTab }: Intervi
     return result;
   };
 
-  const sendTurn = async (nextMessages: ChatMessage[], sessionToken: string | null) => {
+  const sendTurn = async (nextMessages: ChatMessage[], sessionToken: string | null, restoreOnError?: string) => {
     setLoading(true);
     setError(null);
 
@@ -70,13 +73,18 @@ export default function InterviewSimulator({ answers, onNavigateToTab }: Intervi
       if (!res.ok) throw new Error(data?.error || 'Serveren returnerte en feil.');
 
       // Starting a new session (no token yet) costs 1 credit — refresh balance.
-      if (!sessionToken) refreshCredits();
+      if (!sessionToken) {
+        refreshCredits();
+        track('interview_started');
+      }
 
       setSession(data.session ?? null);
       setTurnsLeft(typeof data.turnsLeft === 'number' ? data.turnsLeft : null);
       setMessages([...nextMessages, { role: 'assistant', content: data.reply }]);
     } catch (err: any) {
       setError(typeof err?.message === 'string' && err.message.trim() ? err.message : 'Noe gikk galt. Prøv igjen.');
+      // Ikke la et mislykket sendeforsøk slette det brukeren skrev — legg det tilbake.
+      if (restoreOnError !== undefined) setInput(restoreOnError);
     } finally {
       clearTimeout(timeoutId);
       setLoading(false);
@@ -95,7 +103,7 @@ export default function InterviewSimulator({ answers, onNavigateToTab }: Intervi
     const text = input.trim();
     if (!text || loading || (turnsLeft !== null && turnsLeft <= 0)) return;
     setInput('');
-    sendTurn([...messages, { role: 'user', content: text }], session);
+    sendTurn([...messages, { role: 'user', content: text }], session, text);
   };
 
   const handleRestart = () => {
@@ -105,6 +113,26 @@ export default function InterviewSimulator({ answers, onNavigateToTab }: Intervi
     setInput('');
     setSession(null);
     setTurnsLeft(null);
+  };
+
+  const handleExportTranscript = () => {
+    let content = `INTERVJU-TRANSKRIPT — BIG FIVE FORBEREDELSE\n`;
+    content += `==================================================\n`;
+    content += `Dato: ${new Date().toLocaleDateString('no-NO')}\n`;
+    content += `==================================================\n\n`;
+    messages.forEach((m) => {
+      content += `${m.role === 'user' ? 'DU' : 'REKRUTTERER'}:\n${m.content}\n\n`;
+    });
+    content += `==================================================\n`;
+    content += `Personvern: Denne samtalen ble generert av Google Gemini basert på stillingsinfoen og dine Big Five-skårer.`;
+
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'intervju_transkript.txt';
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
   const sessionEnded = turnsLeft !== null && turnsLeft <= 0;
@@ -165,13 +193,13 @@ export default function InterviewSimulator({ answers, onNavigateToTab }: Intervi
           </div>
           <h2 className="text-xl font-bold text-slate-900 mb-2">Fullfør testen først</h2>
           <p className="text-slate-600 text-sm leading-relaxed mb-6">
-            Simulatoren bruker din Big Five-profil for å skreddersy intervjuet. Fullfør de 60 påstandene for å låse den opp.
+            Simulatoren bruker din Big Five-profil for å skreddersy intervjuet. Fullfør de {statements.length} påstandene for å låse den opp.
           </p>
           <button
             onClick={() => onNavigateToTab('questionnaire')}
             className="w-full bg-teal-700 hover:bg-teal-800 text-white font-medium py-2.5 px-4 rounded-lg transition shadow-xs cursor-pointer flex items-center justify-center gap-2"
           >
-            Fullfør spørreskjemaet ({answeredCount}/60)
+            Fullfør spørreskjemaet ({answeredCount}/{statements.length})
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>
@@ -202,11 +230,15 @@ export default function InterviewSimulator({ answers, onNavigateToTab }: Intervi
           </p>
           <button
             onClick={handleStart}
-            className="bg-teal-700 hover:bg-teal-800 text-white font-bold py-3 px-6 rounded-lg transition shadow-xs cursor-pointer inline-flex items-center gap-2"
+            disabled={!aiConsent}
+            className="bg-teal-700 hover:bg-teal-800 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed text-white font-bold py-3 px-6 rounded-lg transition shadow-xs cursor-pointer inline-flex items-center gap-2"
           >
             <MessageSquare className="w-5 h-5" />
             Start intervjuet
           </button>
+          <div className="max-w-md mx-auto text-left">
+            <AiConsentNotice onChange={setAiConsent} />
+          </div>
         </div>
       ) : (
         <div className="bg-white border border-slate-100 rounded-xl shadow-xs flex flex-col" style={{ height: '70vh' }}>
@@ -291,6 +323,16 @@ export default function InterviewSimulator({ answers, onNavigateToTab }: Intervi
               >
                 <Send className="w-5 h-5" />
               </button>
+              {messages.length > 0 && (
+                <button
+                  onClick={handleExportTranscript}
+                  className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 p-2.5 rounded-lg transition cursor-pointer shrink-0"
+                  title="Last ned transkript (.txt)"
+                  aria-label="Last ned transkript"
+                >
+                  <Download className="w-5 h-5" />
+                </button>
+              )}
               <button
                 onClick={handleRestart}
                 className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 p-2.5 rounded-lg transition cursor-pointer shrink-0"
@@ -302,6 +344,7 @@ export default function InterviewSimulator({ answers, onNavigateToTab }: Intervi
             </div>
             <p className="text-[10px] text-slate-400 mt-1.5 px-1">
               Trykk Enter for å sende · Shift+Enter for ny linje. Samtalen lagres ikke.
+              {typeof turnsLeft === 'number' && turnsLeft > 0 && ` · ${turnsLeft} spørsmål igjen i denne økten.`}
             </p>
           </div>
         </div>

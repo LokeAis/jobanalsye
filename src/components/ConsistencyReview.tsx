@@ -45,7 +45,7 @@ export default function ConsistencyReview({ answers, onNavigateToTab }: Consiste
             <Lock className="w-6 h-6" />
           </div>
           
-          <h2 className="text-xl font-bold text-slate-900 mb-2">Tentamensrapporten er låst</h2>
+          <h2 className="text-xl font-bold text-slate-900 mb-2">Debrief-rapporten er låst</h2>
           <p className="text-slate-600 text-sm leading-relaxed mb-6">
             Rapporten og debriefen genereres så snart du har fullført generalprøven. Vi sjekker din selvinnsikt, konsistens, og gir deg ferdige intervjuspørsmål.
           </p>
@@ -124,7 +124,7 @@ export default function ConsistencyReview({ answers, onNavigateToTab }: Consiste
         </div>
         <div className="relative z-10 max-w-3xl space-y-3">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-teal-500/20 text-teal-300 rounded-full text-xs font-bold font-mono">
-            <span>TENTAMEN DEBRIEF</span>
+            <span>GENERALPRØVE · DEBRIEF</span>
             <span className="w-1.5 h-1.5 bg-teal-400 rounded-full animate-ping" />
           </div>
           <h2 className="text-2xl sm:text-4xl font-extrabold tracking-tight">
@@ -136,7 +136,7 @@ export default function ConsistencyReview({ answers, onNavigateToTab }: Consiste
           <div className="pt-2 flex flex-wrap gap-4 text-xs font-medium text-slate-400">
             <span>Modus: <strong className="text-white uppercase">{testMode === 'realistic' ? 'Realistisk ⏱️' : 'Standard'}</strong></span>
             <span>•</span>
-            <span>Svart på: <strong className="text-white">60 av 60 påstander</strong></span>
+            <span>Svart på: <strong className="text-white">{statements.length} av {statements.length} påstander</strong></span>
             <span>•</span>
             <span>Kontekst: <strong className="text-white">Arbeidshverdagen</strong></span>
           </div>

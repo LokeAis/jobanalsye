@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { statements, DimensionKey, dimensionsData, resolveDimensionKey, computeDimensionScore, getBand } from './data/statements';
+import { statements, DimensionKey, BigFiveKey, dimensionsData, resolveDimensionKey, computeDimensionScore, getBand, INTEGRITY_KEY } from './data/statements';
 import { useAuth } from './auth/AuthContext';
 import { useFeedback } from './ui/Feedback';
+import { track } from './utils/track';
 import DisclaimerBanner from './components/DisclaimerBanner';
 import LandingPage from './components/LandingPage';
 import BigFiveOverview from './components/BigFiveOverview';
@@ -12,6 +13,7 @@ import InterviewPrep from './components/InterviewPrep';
 import NotesSection from './components/NotesSection';
 import JobAnalysis from './components/JobAnalysis';
 import InterviewSimulator from './components/InterviewSimulator';
+import PriorityPractice from './components/PriorityPractice';
 import CreditPurchase from './components/CreditPurchase';
 import LegalView from './components/LegalView';
 import { useDialog } from './hooks/useDialog';
@@ -34,10 +36,14 @@ import {
   LogIn,
   LogOut,
   Plus,
-  X
+  X,
+  Scale,
+  UserCircle,
+  HardDrive,
+  Menu
 } from 'lucide-react';
 
-type TabType = 'home' | 'theory' | 'questionnaire' | 'results' | 'consistency' | 'prep' | 'jobAnalysis' | 'interview' | 'notes' | 'privacy';
+type TabType = 'home' | 'theory' | 'questionnaire' | 'results' | 'consistency' | 'prep' | 'jobAnalysis' | 'interview' | 'priority' | 'notes' | 'privacy';
 
 // All localStorage keys the app owns — used for reset, export and import.
 const STORAGE_KEYS = [
@@ -51,7 +57,38 @@ const STORAGE_KEYS = [
   'bigfive_prep_job_analyses',
   'bigfive_prep_guesses',
   'bigfive_prep_mode',
+  'bigfive_prep_ai_consent',
+  'bigfive_prep_score_history',
 ] as const;
+
+const SCORE_HISTORY_LIMIT = 5;
+
+export interface ScoreSnapshot {
+  date: string;
+  scores: Record<string, number>;
+}
+
+// Per-eier sikkerhetskopi av de live nøklene over ("bytt hele bøtta" i stedet for å
+// slette ved ut-/innlogging). Owner er en Firebase uid, eller 'anon' for ikke innlogget.
+const bucketKey = (key: string, owner: string) => `${key}::${owner}`;
+
+function backupLiveInto(owner: string) {
+  STORAGE_KEYS.forEach((k) => {
+    const v = localStorage.getItem(k);
+    if (v !== null) localStorage.setItem(bucketKey(k, owner), v);
+    else localStorage.removeItem(bucketKey(k, owner));
+  });
+}
+function restoreLiveFrom(owner: string) {
+  STORAGE_KEYS.forEach((k) => {
+    const v = localStorage.getItem(bucketKey(k, owner));
+    if (v !== null) localStorage.setItem(k, v);
+    else localStorage.removeItem(k);
+  });
+}
+function hasBucket(owner: string): boolean {
+  return STORAGE_KEYS.some((k) => localStorage.getItem(bucketKey(k, owner)) !== null);
+}
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>('home');
@@ -61,6 +98,12 @@ export default function App() {
   const [purchaseConsent, setPurchaseConsent] = useState(false);
   const closePurchase = useCallback(() => setShowPurchase(false), []);
   const purchaseDialogRef = useDialog<HTMLDivElement>(showPurchase, closePurchase);
+  const [showAccount, setShowAccount] = useState(false);
+  const closeAccount = useCallback(() => setShowAccount(false), []);
+  const accountDialogRef = useDialog<HTMLDivElement>(showAccount, closeAccount);
+  const [showNav, setShowNav] = useState(false);
+  const closeNav = useCallback(() => setShowNav(false), []);
+  const navDialogRef = useDialog<HTMLDivElement>(showNav, closeNav);
   const [legalView, setLegalView] = useState<null | 'personvern' | 'vilkar'>(null);
   const openLegal = useCallback((doc: 'personvern' | 'vilkar') => {
     setShowPurchase(false);
@@ -93,6 +136,46 @@ export default function App() {
   useEffect(() => {
     localStorage.removeItem('bigfive_prep_premium');
   }, []);
+
+  // Bekreftelse etter at identitetsskiftet under (bucket-bytte) gjenopprettet
+  // tidligere lagret fremgang for kontoen som nettopp logget inn.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (!params.get('gjenopprettet')) return;
+    window.history.replaceState({}, '', window.location.pathname);
+    toast('Fant og gjenopprettet din tidligere fremgang.', 'success');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Personvern-vakt for enhetslokal data (test/notater/lagrede analyser). Denne
+  // dataen er IKKE knyttet til en konto, så på en delt nettleser må vi rydde ved
+  // identitetsskifte — men IKKE ved å slette: vi bytter hele "bøtta" (se
+  // backupLiveInto/restoreLiveFrom over), slik at ingen mister fremgang ved
+  // ut-/innlogging, samtidig som ingen konto ser en annens data.
+  useEffect(() => {
+    if (loading) return; // ikke reager før Firebase har avgjort innloggingsstatus
+    const OWNER_KEY = 'bigfive_prep_owner_uid';
+    const nextOwner = user?.uid ?? 'anon';
+    const currentOwner = localStorage.getItem(OWNER_KEY) ?? 'anon';
+    if (nextOwner === currentOwner) return; // samme identitet fortsetter
+
+    const isFirstClaim = currentOwner === 'anon' && nextOwner !== 'anon' && !hasBucket(nextOwner);
+    if (isFirstClaim) {
+      // Anonym utfylling → første innlogging: behold live data som den er.
+      backupLiveInto(nextOwner);
+    } else {
+      backupLiveInto(currentOwner); // ta vare på det som var aktivt, uansett hvem
+      if (hasBucket(nextOwner)) {
+        restoreLiveFrom(nextOwner);
+        localStorage.setItem(OWNER_KEY, nextOwner);
+        window.location.href = window.location.pathname + '?gjenopprettet=1';
+        return;
+      }
+      STORAGE_KEYS.forEach((k) => localStorage.removeItem(k)); // ny/tom identitet
+    }
+    localStorage.setItem(OWNER_KEY, nextOwner);
+    window.location.reload();
+  }, [user, loading]);
 
   // Deep link from e.g. the e-mail receipt: ?juridisk=vilkar|personvern.
   useEffect(() => {
@@ -133,34 +216,16 @@ export default function App() {
   const [showResetConfirm, setShowResetConfirm] = useState<boolean>(false);
   const importInputRef = useRef<HTMLInputElement>(null);
 
-  // Scroll-aware nav fades: left shows only when scrolled, right hides at the end.
-  const tabScrollRef = useRef<HTMLDivElement>(null);
-  const [tabFade, setTabFade] = useState<{ left: boolean; right: boolean }>({ left: false, right: false });
-
-  useEffect(() => {
-    const el = tabScrollRef.current;
-    if (!el) return;
-    const update = () => {
-      const { scrollLeft, scrollWidth, clientWidth } = el;
-      setTabFade({
-        left: scrollLeft > 1,
-        right: scrollLeft + clientWidth < scrollWidth - 1,
-      });
-    };
-    update();
-    el.addEventListener('scroll', update, { passive: true });
-    window.addEventListener('resize', update);
-    return () => {
-      el.removeEventListener('scroll', update);
-      window.removeEventListener('resize', update);
-    };
-  }, []);
-
   // 2. Persistent saves on update
   const handleAnswer = (id: string, value: number) => {
+    const wasEmpty = Object.keys(answers).length === 0;
+    const prevCompleted = statements.every((s) => answers[s.id] !== undefined);
     const newAnswers = { ...answers, [id]: value };
     setAnswers(newAnswers);
     localStorage.setItem('bigfive_prep_answers', JSON.stringify(newAnswers));
+    if (wasEmpty) track('test_started');
+    const nowCompleted = statements.every((s) => newAnswers[s.id] !== undefined);
+    if (nowCompleted && !prevCompleted) track('test_completed');
   };
 
   const handleSaveNote = (
@@ -182,7 +247,29 @@ export default function App() {
 
   // 3. Clear data and reset
   const handleResetAllData = () => {
+    // Snapshot dagens skårer FØR vi tømmer noe, slik at "Sammenlign med forrige
+    // forsøk" i Results.tsx har noe å vise etter neste gjennomføring. Kun hvis
+    // testen faktisk var fullført — ellers er det ingenting meningsfullt å lagre.
+    let nextHistoryJson: string | null = null;
+    if (isQuestionnaireComplete) {
+      const allKeys: DimensionKey[] = [...(Object.keys(dimensionsData) as BigFiveKey[]), INTEGRITY_KEY];
+      const snapshot: ScoreSnapshot = {
+        date: new Date().toISOString(),
+        scores: Object.fromEntries(allKeys.map((k) => [k, computeDimensionScore(k, answers)])),
+      };
+      let history: ScoreSnapshot[] = [];
+      try {
+        history = JSON.parse(localStorage.getItem('bigfive_prep_score_history') || '[]');
+      } catch {
+        history = [];
+      }
+      nextHistoryJson = JSON.stringify([snapshot, ...history].slice(0, SCORE_HISTORY_LIMIT));
+    }
     STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
+    // Fjern også egen sikkerhetskopi, ellers kommer "slettet" data tilbake ved neste innlogging.
+    if (user) STORAGE_KEYS.forEach((key) => localStorage.removeItem(bucketKey(key, user.uid)));
+    // Skriv den ferske historikken tilbake ETTER full tømming, så den overlever resetten.
+    if (nextHistoryJson) localStorage.setItem('bigfive_prep_score_history', nextHistoryJson);
     setAnswers({});
     setNotes({});
     setActiveTab('home');
@@ -194,7 +281,7 @@ export default function App() {
     const ok = await confirm({
       title: 'Slette konto og alle data?',
       message:
-        'Dette sletter kontoen din, e-postadressen og klippsaldoen permanent fra serveren, og fjerner testdataene dine lokalt. Handlingen kan ikke angres. Har du ubrukte klipp du vil ha refundert, kontakt oss FØR du sletter.',
+        'Dette sletter kontoen din, e-postadressen og klippsaldoen permanent fra serveren, og fjerner testdataene dine lokalt. Handlingen kan ikke angres.',
       confirmLabel: 'Slett alt permanent',
       cancelLabel: 'Avbryt',
       danger: true,
@@ -204,6 +291,8 @@ export default function App() {
       const res = await authedFetch('/api/delete-account', { method: 'POST' });
       if (!res.ok) throw new Error();
       STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
+      // Fjern også egen sikkerhetskopi (GDPR — data skal ikke kunne dukke opp igjen).
+      STORAGE_KEYS.forEach((key) => localStorage.removeItem(bucketKey(key, user!.uid)));
       setAnswers({});
       setNotes({});
       await signOut();
@@ -307,9 +396,10 @@ export default function App() {
     icon: React.ReactNode;
     badge?: React.ReactNode;
     activeClass?: string;
+    group: string;
   }[] = [
-    { key: 'home', id: 'tab-home', label: 'Start', icon: <Home className="w-4 h-4 text-slate-400" /> },
-    { key: 'theory', id: 'tab-theory', label: 'Big Five-oversikt', shortLabel: 'Oversikt', icon: <BookOpen className="w-4 h-4 text-slate-400" /> },
+    { key: 'home', id: 'tab-home', label: 'Start', icon: <Home className="w-4 h-4 text-slate-400" />, group: 'Kom i gang' },
+    { key: 'theory', id: 'tab-theory', label: 'Big Five-oversikt', shortLabel: 'Oversikt', icon: <BookOpen className="w-4 h-4 text-slate-400" />, group: 'Kom i gang' },
     {
       key: 'questionnaire',
       id: 'tab-questionnaire',
@@ -318,18 +408,20 @@ export default function App() {
       icon: <ClipboardList className="w-4 h-4 text-slate-400" />,
       badge: answeredCount > 0 ? (
         <span className="ml-1 bg-teal-100 text-teal-900 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-          {answeredCount}/60
+          {answeredCount}/{statements.length}
         </span>
       ) : null,
+      group: 'Test',
     },
     {
       key: 'consistency',
       id: 'tab-consistency',
-      label: 'Tentamensrapport (Debrief)',
+      label: 'Debrief-rapport',
       shortLabel: 'Debrief',
       icon: <ShieldCheck className="w-4 h-4 text-slate-400" />,
       activeClass: 'bg-teal-700 text-white border border-teal-700 shadow-xs',
       badge: lockBadge,
+      group: 'Resultat',
     },
     {
       key: 'results',
@@ -338,6 +430,7 @@ export default function App() {
       shortLabel: 'Profil',
       icon: <FileText className="w-4 h-4 text-slate-400" />,
       badge: lockBadge,
+      group: 'Resultat',
     },
     {
       key: 'prep',
@@ -346,6 +439,7 @@ export default function App() {
       shortLabel: 'Forberedelse',
       icon: <HelpCircle className="w-4 h-4 text-slate-400" />,
       badge: lockBadge,
+      group: 'Forberedelse',
     },
     {
       key: 'jobAnalysis',
@@ -353,7 +447,8 @@ export default function App() {
       label: 'AI Jobbanalyse',
       shortLabel: 'Jobbanalyse',
       icon: <Sparkles className="w-4 h-4 text-teal-600 animate-pulse" />,
-      badge: <span className="text-[10px] bg-teal-100 text-teal-800 px-1 rounded-sm font-bold">AI</span>,
+      badge: <span className="text-[10px] bg-teal-50 text-teal-700 px-1 rounded-sm font-bold">AI</span>,
+      group: 'Forberedelse',
     },
     {
       key: 'interview',
@@ -361,31 +456,22 @@ export default function App() {
       label: 'Intervju-simulator',
       shortLabel: 'Simulator',
       icon: <MessageSquare className="w-4 h-4 text-teal-600" />,
-      badge: <span className="text-[10px] bg-amber-100 text-amber-800 px-1 rounded-sm font-bold">PRO</span>,
+      badge: <span className="text-[10px] bg-gold-100 text-gold-700 px-1 rounded-sm font-bold">PRO</span>,
+      group: 'Forberedelse',
     },
-    { key: 'notes', id: 'tab-notes', label: 'Mine Notater', shortLabel: 'Notater', icon: <BookMarked className="w-4 h-4 text-slate-400" /> },
-    { key: 'privacy', id: 'tab-privacy', label: 'Personvern', icon: <ShieldCheck className="w-4 h-4 text-teal-600" /> },
+    {
+      key: 'priority',
+      id: 'tab-priority',
+      label: 'Prioriteringsøvelse',
+      shortLabel: 'Prioritering',
+      icon: <Scale className="w-4 h-4 text-slate-400" />,
+      group: 'Forberedelse',
+    },
+    { key: 'notes', id: 'tab-notes', label: 'Mine Notater', shortLabel: 'Notater', icon: <BookMarked className="w-4 h-4 text-slate-400" />, group: 'Annet' },
+    { key: 'privacy', id: 'tab-privacy', label: 'Personvern', icon: <ShieldCheck className="w-4 h-4 text-teal-600" />, group: 'Annet' },
   ];
 
-  const activeTabId = tabs.find((t) => t.key === activeTab)?.id;
-
-  // Roving keyboard navigation for the tablist (WAI-ARIA automatic activation).
-  const handleTabKeyDown = (e: React.KeyboardEvent<HTMLElement>) => {
-    const currentIndex = tabs.findIndex((t) => t.key === activeTab);
-    if (currentIndex === -1) return;
-
-    let nextIndex = currentIndex;
-    if (e.key === 'ArrowRight') nextIndex = (currentIndex + 1) % tabs.length;
-    else if (e.key === 'ArrowLeft') nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
-    else if (e.key === 'Home') nextIndex = 0;
-    else if (e.key === 'End') nextIndex = tabs.length - 1;
-    else return;
-
-    e.preventDefault();
-    const next = tabs[nextIndex];
-    navigateToTab(next.key);
-    requestAnimationFrame(() => document.getElementById(next.id)?.focus());
-  };
+  const activeTabInfo = tabs.find((t) => t.key === activeTab);
 
   return (
     <div className="min-h-screen bg-[#fcfcfc] text-slate-800 flex flex-col antialiased">
@@ -395,19 +481,31 @@ export default function App() {
         <div className="max-w-6xl mx-auto px-4">
           <div className="flex justify-between items-center h-16">
             
-            {/* Logo / Brand */}
-            <button 
-              onClick={() => navigateToTab('home')}
-              className="flex items-center gap-2.5 text-slate-900 hover:text-slate-700 transition cursor-pointer text-left"
-            >
-              <div className="w-9 h-9 bg-teal-700 rounded-lg flex items-center justify-center text-white">
-                <Compass className="w-5 h-5" />
-              </div>
-              <div>
-                <span className="font-bold text-base leading-none block">Big Five Forberedelse</span>
-                <span className="text-[10px] text-slate-500 font-medium">Refleksjonsverktøy for rekruttering</span>
-              </div>
-            </button>
+            {/* Menu trigger + Logo / Brand */}
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <button
+                id="btn-open-nav"
+                onClick={() => setShowNav(true)}
+                aria-label="Åpne meny"
+                aria-haspopup="dialog"
+                aria-expanded={showNav}
+                className="shrink-0 p-2 -ml-1 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => navigateToTab('home')}
+                className="flex items-center gap-2.5 text-slate-900 hover:text-slate-700 transition cursor-pointer text-left min-w-0"
+              >
+                <div className="w-9 h-9 bg-teal-700 rounded-lg flex items-center justify-center text-white shrink-0">
+                  <Compass className="w-5 h-5" />
+                </div>
+                <div className="min-w-0 hidden sm:block">
+                  <span className="font-bold text-base leading-none block">Big Five Forberedelse</span>
+                  <span className="text-[10px] text-slate-500 font-medium">Refleksjonsverktøy for rekruttering</span>
+                </div>
+              </button>
+            </div>
 
             {/* Answer progress + auth/credits */}
             <div className="flex items-center gap-2 sm:gap-3">
@@ -420,7 +518,7 @@ export default function App() {
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75"></span>
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-teal-500"></span>
                   </span>
-                  <span>Svart: {answeredCount} / 60</span>
+                  <span>Fullført: {answeredCount} / {statements.length}</span>
                 </button>
               )}
 
@@ -429,7 +527,7 @@ export default function App() {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => { setPurchaseConsent(false); setShowPurchase(true); }}
-                      className="flex items-center gap-1.5 text-xs font-bold px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 rounded-lg transition cursor-pointer"
+                      className="flex items-center gap-1.5 text-xs font-bold px-2.5 py-1.5 bg-white hover:bg-gold-50 border border-gold-300 text-gold-700 rounded-lg transition cursor-pointer"
                       title="Dine AI-klipp – klikk for å kjøpe flere"
                     >
                       <Ticket className="w-3.5 h-3.5" />
@@ -437,12 +535,13 @@ export default function App() {
                       <Plus className="w-3 h-3" />
                     </button>
                     <button
-                      onClick={() => signOut()}
-                      title={user.email || 'Logg ut'}
-                      className="hidden sm:flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 rounded-lg transition"
+                      onClick={() => setShowAccount(true)}
+                      title={user.email || 'Min side'}
+                      aria-label="Min side"
+                      className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 rounded-lg transition cursor-pointer"
                     >
-                      <LogOut className="w-3.5 h-3.5" />
-                      Logg ut
+                      <UserCircle className="w-4 h-4" />
+                      <span className="hidden sm:inline">Min side</span>
                     </button>
                   </div>
                 ) : (
@@ -460,62 +559,18 @@ export default function App() {
           </div>
         </div>
 
-        {/* Tab Selection Row (Responsive horizontal scroll) */}
-        <div className="bg-slate-50 border-t border-slate-200/50">
-          <div className="relative max-w-6xl mx-auto">
-            {/* Edge fades hint that the strip scrolls horizontally. Left appears only
-                once scrolled, right disappears at the end (11 tabs overflow on desktop). */}
-            <div
-              className={`pointer-events-none absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-slate-50 to-transparent z-10 transition-opacity duration-200 ${
-                tabFade.left ? 'opacity-100' : 'opacity-0'
-              }`}
-            />
-            <div
-              className={`pointer-events-none absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-slate-50 to-transparent z-10 transition-opacity duration-200 ${
-                tabFade.right ? 'opacity-100' : 'opacity-0'
-              }`}
-            />
-            <div ref={tabScrollRef} className="px-2 overflow-x-auto scrollbar-none">
-            <nav
-              role="tablist"
-              aria-label="Seksjoner"
-              onKeyDown={handleTabKeyDown}
-              className="flex space-x-1 py-1.5 min-w-max"
-            >
-              {tabs.map((tab) => {
-                const isActive = activeTab === tab.key;
-                const activeStyles =
-                  tab.activeClass ?? 'bg-white text-slate-900 border border-slate-200/60 shadow-xs';
-                return (
-                  <button
-                    key={tab.key}
-                    id={tab.id}
-                    role="tab"
-                    aria-selected={isActive}
-                    aria-controls="main-tabpanel"
-                    tabIndex={isActive ? 0 : -1}
-                    onClick={() => navigateToTab(tab.key)}
-                    className={`px-3 py-1.5 rounded-md text-xs sm:text-sm font-semibold transition flex items-center gap-1.5 cursor-pointer ${
-                      isActive ? activeStyles : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                    }`}
-                  >
-                    {tab.icon}
-                    {tab.shortLabel ? (
-                      <>
-                        <span className="sm:hidden">{tab.shortLabel}</span>
-                        <span className="hidden sm:inline">{tab.label}</span>
-                      </>
-                    ) : (
-                      <span>{tab.label}</span>
-                    )}
-                    {tab.badge}
-                  </button>
-                );
-              })}
-            </nav>
-            </div>
+        {/* "You are here" bar: always shows the active section + reopens the menu */}
+        <button
+          onClick={() => setShowNav(true)}
+          aria-label={`Nåværende seksjon: ${activeTabInfo?.label ?? ''}. Åpne meny for å bytte.`}
+          className="w-full bg-slate-50 border-t border-slate-200/50 hover:bg-slate-100 transition cursor-pointer"
+        >
+          <div className="max-w-6xl mx-auto px-4 py-2 flex items-center gap-2 text-xs sm:text-sm font-semibold text-slate-700">
+            {activeTabInfo?.icon}
+            <span className="truncate">{activeTabInfo?.label}</span>
+            {activeTabInfo?.badge}
           </div>
-        </div>
+        </button>
       </header>
 
       {/* Mandatory Disclaimer visible on all pages */}
@@ -525,10 +580,9 @@ export default function App() {
 
       {/* Main Content Area */}
       <main
-        id="main-tabpanel"
-        role="tabpanel"
-        aria-labelledby={activeTabId}
-        tabIndex={0}
+        id="main-content"
+        aria-label={activeTabInfo?.label}
+        tabIndex={-1}
         className="flex-1 pb-16 print:hidden"
       >
         
@@ -587,6 +641,10 @@ export default function App() {
             answers={answers}
             onNavigateToTab={navigateToTab}
           />
+        )}
+
+        {activeTab === 'priority' && (
+          <PriorityPractice onNavigateToTab={navigateToTab} />
         )}
 
         {activeTab === 'notes' && (
@@ -683,7 +741,7 @@ export default function App() {
                       Er du helt sikker på at du vil slette alt?
                     </p>
                     <p className="text-rose-900 text-xs">
-                      Dette vil fjerne alle dine 60 svar på spørreskjemaet og alle dine personlige notater permanent.
+                      Dette vil fjerne alle dine {statements.length} svar på spørreskjemaet og alle dine personlige notater permanent. Om testen er fullført, lagres skårene dine slik at du kan sammenligne med et senere forsøk.
                     </p>
                     <div className="flex gap-2">
                       <button
@@ -715,19 +773,17 @@ export default function App() {
 
               {configured && user && (
                 <div className="border-t border-slate-150 pt-6 mt-6">
-                  <h3 className="font-bold text-slate-900 text-sm sm:text-base mb-2">Slett konto (GDPR)</h3>
-                  <p className="text-slate-500 text-xs sm:text-sm leading-relaxed mb-3">
-                    Sletter kontoen din, e-postadressen og klippsaldoen permanent fra serveren,
-                    og fjerner testdataene dine lokalt. Kan ikke angres. Har du ubrukte klipp du
-                    vil ha refundert, kontakt oss før du sletter.
+                  <h3 className="font-bold text-slate-900 text-sm sm:text-base mb-2">Konto (GDPR)</h3>
+                  <p className="text-slate-500 text-xs sm:text-sm leading-relaxed">
+                    Logg ut og sletting av konto og alle data finner du under{' '}
+                    <button
+                      onClick={() => setShowAccount(true)}
+                      className="text-teal-700 underline font-semibold cursor-pointer"
+                    >
+                      Min side
+                    </button>{' '}
+                    (person-ikonet øverst til høyre).
                   </p>
-                  <button
-                    onClick={handleDeleteAccount}
-                    className="bg-white hover:bg-rose-50 text-rose-600 border border-rose-200 hover:border-rose-300 font-semibold px-4 py-2.5 rounded-lg text-xs sm:text-sm transition flex items-center gap-2 cursor-pointer"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Slett konto og alle data
-                  </button>
                 </div>
               )}
 
@@ -777,7 +833,7 @@ export default function App() {
                         </div>
                         <div className="text-right">
                           <p className="text-slate-600"><span className="font-semibold text-slate-800">Match-bånd:</span> <span className="font-bold text-teal-800">{analysis.matchBand} Match</span></p>
-                          <p className="text-slate-500 text-xs">Vurdert via Big Five Tentamen</p>
+                          <p className="text-slate-500 text-xs">Vurdert via Big Five-generalprøven</p>
                         </div>
                       </div>
                     </div>
@@ -983,6 +1039,64 @@ export default function App() {
         </div>
       )}
 
+      {/* Side navigation drawer (opened from the hamburger button / "you are here" bar) */}
+      {showNav && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-900/40"
+          onClick={closeNav}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Meny"
+        >
+          <div
+            ref={navDialogRef}
+            tabIndex={-1}
+            className="absolute left-0 top-0 h-full w-full max-w-xs bg-white shadow-xl outline-none flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 h-16 border-b border-slate-200/80 shrink-0">
+              <span className="font-bold text-slate-900">Seksjoner</span>
+              <button
+                onClick={closeNav}
+                aria-label="Lukk meny"
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <nav aria-label="Seksjoner" className="flex-1 overflow-y-auto py-2">
+              {tabs.map((tab, i) => {
+                const isActive = activeTab === tab.key;
+                const isNewGroup = tab.group !== tabs[i - 1]?.group;
+                return (
+                  <React.Fragment key={tab.key}>
+                    {isNewGroup && (
+                      <div className={`px-4 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 ${i === 0 ? 'pt-2' : 'pt-4'}`}>
+                        {tab.group}
+                      </div>
+                    )}
+                    <button
+                      id={tab.id}
+                      aria-current={isActive ? 'page' : undefined}
+                      onClick={() => { navigateToTab(tab.key); closeNav(); }}
+                      className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold transition cursor-pointer text-left ${
+                        isActive
+                          ? 'bg-teal-50/70 text-teal-800 border-l-4 border-teal-400'
+                          : 'text-slate-600 hover:bg-slate-50 border-l-4 border-transparent'
+                      }`}
+                    >
+                      {tab.icon}
+                      <span className="flex-1">{tab.label}</span>
+                      {tab.badge}
+                    </button>
+                  </React.Fragment>
+                );
+              })}
+            </nav>
+          </div>
+        </div>
+      )}
+
       {/* Credit purchase modal (opened from the credit chip) */}
       {showPurchase && (
         <div
@@ -1036,6 +1150,97 @@ export default function App() {
               <button onClick={() => openLegal('personvern')} className="text-teal-700 underline cursor-pointer">
                 personvernerklæringen
               </button>.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Account / "Min side" panel (opened from the person icon in the header) */}
+      {showAccount && user && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-900/40 flex items-center justify-center p-4"
+          onClick={closeAccount}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Min side"
+        >
+          <div
+            ref={accountDialogRef}
+            tabIndex={-1}
+            className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 relative outline-none"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={closeAccount}
+              className="absolute top-3 right-3 p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+              aria-label="Lukk"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-11 h-11 bg-teal-700 rounded-full flex items-center justify-center text-white shrink-0">
+                <UserCircle className="w-6 h-6" />
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-lg font-bold text-slate-900 leading-tight">Min side</h2>
+                <p className="text-sm text-slate-500 truncate" title={user.email || undefined}>
+                  {user.email || 'Innlogget'}
+                </p>
+              </div>
+            </div>
+
+            {/* Saldo + kjøp */}
+            <div className="flex items-center justify-between gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-4">
+              <div className="flex items-center gap-2 text-amber-800">
+                <Ticket className="w-4 h-4" />
+                <span className="font-bold text-sm">{credits ?? '–'} klipp</span>
+              </div>
+              <button
+                onClick={() => { closeAccount(); setPurchaseConsent(false); setShowPurchase(true); }}
+                className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 bg-teal-700 hover:bg-teal-800 text-white rounded-lg transition cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Kjøp flere
+              </button>
+            </div>
+
+            {/* Lagringsinfo — forklarer hvorfor svar ikke synker mellom enheter */}
+            <div className="flex items-start gap-2.5 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 mb-5 text-xs text-slate-600 leading-relaxed">
+              <HardDrive className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+              <span>
+                Testsvar, profil og notater lagres <span className="font-semibold">kun på denne enheten</span>{' '}
+                og synkroniseres ikke mellom PC og mobil. Klippsaldoen er knyttet til kontoen din
+                og følger deg på alle enheter. Bruk ikke delte eller offentlige datamaskiner til dette.
+              </span>
+            </div>
+
+            {/* Handlinger */}
+            <div className="space-y-2.5">
+              <button
+                onClick={() => { closeAccount(); signOut(); }}
+                className="w-full flex items-center justify-center gap-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 font-semibold px-4 py-2.5 rounded-lg text-sm transition cursor-pointer"
+              >
+                <LogOut className="w-4 h-4" />
+                Logg ut
+              </button>
+              <button
+                onClick={() => { closeAccount(); handleDeleteAccount(); }}
+                className="w-full flex items-center justify-center gap-2 bg-white hover:bg-rose-50 text-rose-600 border border-rose-200 hover:border-rose-300 font-semibold px-4 py-2.5 rounded-lg text-sm transition cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4" />
+                Slett konto og alle data
+              </button>
+            </div>
+
+            <p className="text-[11px] text-slate-400 mt-4 text-center">
+              <button onClick={() => { closeAccount(); setLegalView('personvern'); }} className="hover:text-slate-600 underline cursor-pointer">
+                Personvern
+              </button>
+              <span aria-hidden="true" className="mx-2">·</span>
+              <button onClick={() => { closeAccount(); setLegalView('vilkar'); }} className="hover:text-slate-600 underline cursor-pointer">
+                Vilkår & kjøpsbetingelser
+              </button>
             </p>
           </div>
         </div>

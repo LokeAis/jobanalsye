@@ -1,4 +1,12 @@
-export type DimensionKey = 'planmessighet' | 'emosjonell_stabilitet' | 'ekstroversjon' | 'omgjengelighet' | 'aapenhet';
+// De fem Big Five-dimensjonene. Brukt av all Big Five-spesifikk logikk
+// (dimensionsData, bandsData, consistencyPairs, radar, AI-analyse osv.).
+export type BigFiveKey = 'planmessighet' | 'emosjonell_stabilitet' | 'ekstroversjon' | 'omgjengelighet' | 'aapenhet';
+
+// Integritet er en EGEN skala, ikke en Big Five-dimensjon. Den lever i samme
+// `statements`-array (så spørreskjema/fremdrift/fullføring virker), men har ingen
+// oppføring i dimensionsData/bandsData — den vises i sin egen seksjon i resultatene.
+// DimensionKey brukes av de generiske skåre-funksjonene som håndterer begge deler.
+export type DimensionKey = BigFiveKey | 'integritet';
 
 export interface Statement {
   id: string;
@@ -34,8 +42,8 @@ export const statements: Statement[] = [
   { id: 'plan_4', tekst: 'Jeg fullfører alltid oppgaver jeg har påtatt meg, selv om de er kjedelige.', dimensjon: 'planmessighet', keyed: 'positiv' },
   { id: 'plan_5', tekst: 'Jeg er nøye med detaljene i arbeidet mitt for å sikre høy kvalitet.', dimensjon: 'planmessighet', keyed: 'positiv' },
   { id: 'plan_6', tekst: 'Jeg liker å lage lister over hva som må gjøres og krysse dem av systematisk.', dimensjon: 'planmessighet', keyed: 'positiv' },
-  { id: 'plan_7', tekst: 'Jeg møter alltid presist til avtaler og møter.', dimensjon: 'planmessighet', keyed: 'positiv' },
-  { id: 'plan_8', tekst: 'Jeg jobber strukturert og følger etablerte rutiner i hverdagen.', dimensjon: 'planmessighet', keyed: 'positiv' },
+  { id: 'plan_7', tekst: 'Jeg hopper lett mellom oppgaver uten å fullføre det jeg startet på.', dimensjon: 'planmessighet', keyed: 'negativ' },
+  { id: 'plan_8', tekst: 'Jeg synes detaljer ofte tar unødvendig mye plass i arbeidet.', dimensjon: 'planmessighet', keyed: 'negativ' },
   { id: 'plan_9', tekst: 'Jeg utsetter ofte oppgaver til siste øyeblikk hvis jeg kan.', dimensjon: 'planmessighet', keyed: 'negativ' },
   { id: 'plan_10', tekst: 'Jeg har en tendens til å miste fokus når jeg må jobbe med langsiktige prosjekter.', dimensjon: 'planmessighet', keyed: 'negativ' },
   { id: 'plan_11', tekst: 'Jeg tar ting litt som de kommer på jobb, uten en fast plan.', dimensjon: 'planmessighet', keyed: 'negativ' },
@@ -48,8 +56,8 @@ export const statements: Statement[] = [
   { id: 'emos_4', tekst: 'Jeg klarer å koble av fra jobb når arbeidsdagen er over.', dimensjon: 'emosjonell_stabilitet', keyed: 'positiv' },
   { id: 'emos_5', tekst: 'Jeg føler meg trygg på egne evner og avgjørelser i arbeidshverdagen.', dimensjon: 'emosjonell_stabilitet', keyed: 'positiv' },
   { id: 'emos_6', tekst: 'Jeg lar meg sjelden påvirke av dårlig stemning eller stress rundt meg.', dimensjon: 'emosjonell_stabilitet', keyed: 'positiv' },
-  { id: 'emos_7', tekst: 'Jeg tar utfordringer og endringer på arbeidsplassen med fatning.', dimensjon: 'emosjonell_stabilitet', keyed: 'positiv' },
-  { id: 'emos_8', tekst: 'Jeg opplever sjelden å bli overveldet av arbeidsmengden.', dimensjon: 'emosjonell_stabilitet', keyed: 'positiv' },
+  { id: 'emos_7', tekst: 'Jeg bruker mye tid på å gruble etter kritiske tilbakemeldinger.', dimensjon: 'emosjonell_stabilitet', keyed: 'negativ' },
+  { id: 'emos_8', tekst: 'Jeg opplever press som mer belastende enn kollegene mine ser ut til å gjøre.', dimensjon: 'emosjonell_stabilitet', keyed: 'negativ' },
   { id: 'emos_9', tekst: 'Jeg blir lett bekymret for om resultatet av arbeidet mitt er godt nok.', dimensjon: 'emosjonell_stabilitet', keyed: 'negativ' },
   { id: 'emos_10', tekst: 'Jeg kan føle meg usikker på egne prestasjoner hvis jeg ikke får hyppige tilbakemeldinger.', dimensjon: 'emosjonell_stabilitet', keyed: 'negativ' },
   { id: 'emos_11', tekst: 'Jeg synes det er vanskelig å omstille meg når planene endres i siste liten.', dimensjon: 'emosjonell_stabilitet', keyed: 'negativ' },
@@ -62,8 +70,8 @@ export const statements: Statement[] = [
   { id: 'ekst_4', tekst: 'Jeg trives godt med å holde presentasjoner eller lede arbeidsmøter.', dimensjon: 'ekstroversjon', keyed: 'positiv' },
   { id: 'ekst_5', tekst: 'Jeg oppsøker aktivt nye samarbeidspartnere internt eller eksternt i organisasjonen.', dimensjon: 'ekstroversjon', keyed: 'positiv' },
   { id: 'ekst_6', tekst: 'Jeg deler gjerne uferdige ideer høyt for å få innspill fra andre.', dimensjon: 'ekstroversjon', keyed: 'positiv' },
-  { id: 'ekst_7', tekst: 'Jeg trives i et hektisk arbeidsmiljø med mye lyd og aktivitet rundt meg.', dimensjon: 'ekstroversjon', keyed: 'positiv' },
-  { id: 'ekst_8', tekst: 'Jeg tar ofte rollen som talsmann eller leder i gruppearbeid.', dimensjon: 'ekstroversjon', keyed: 'positiv' },
+  { id: 'ekst_7', tekst: 'Jeg blir ofte tappet av lange perioder med mye sosial kontakt.', dimensjon: 'ekstroversjon', keyed: 'negativ' },
+  { id: 'ekst_8', tekst: 'Jeg foretrekker å jobbe stille for meg selv fremfor å tenke høyt med andre.', dimensjon: 'ekstroversjon', keyed: 'negativ' },
   { id: 'ekst_9', tekst: 'Jeg foretrekker å jobbe alene uten forstyrrelser fra kolleger.', dimensjon: 'ekstroversjon', keyed: 'negativ' },
   { id: 'ekst_10', tekst: 'Jeg synes det er slitsomt å måtte forholde meg til mange nye mennesker i løpet av en arbeidsdag.', dimensjon: 'ekstroversjon', keyed: 'negativ' },
   { id: 'ekst_11', tekst: 'Jeg foretrekker å sende en e-post fremfor å ringe eller gå bort til kolleger.', dimensjon: 'ekstroversjon', keyed: 'negativ' },
@@ -76,8 +84,8 @@ export const statements: Statement[] = [
   { id: 'omgj_4', tekst: 'Jeg bidrar aktivt til å skape en hyggelig og inkluderende stemning på jobb.', dimensjon: 'omgjengelighet', keyed: 'positiv' },
   { id: 'omgj_5', tekst: 'Jeg søker gjerne kompromisser for å løse uenigheter i et team.', dimensjon: 'omgjengelighet', keyed: 'positiv' },
   { id: 'omgj_6', tekst: 'Jeg roser kollegene mine når de gjør en god jobb eller oppnår resultater.', dimensjon: 'omgjengelighet', keyed: 'positiv' },
-  { id: 'omgj_7', tekst: 'Jeg er opptatt av at alle i teamet skal trives og føle seg hørt.', dimensjon: 'omgjengelighet', keyed: 'positiv' },
-  { id: 'omgj_8', tekst: 'Jeg tilpasser meg gjerne andres måte å jobbe på for å bevare det gode samarbeidet.', dimensjon: 'omgjengelighet', keyed: 'positiv' },
+  { id: 'omgj_7', tekst: 'Jeg synes folk ofte må tåle harde tilbakemeldinger uten så mye forklaring.', dimensjon: 'omgjengelighet', keyed: 'negativ' },
+  { id: 'omgj_8', tekst: 'Jeg prioriterer å få rett i en sak fremfor å ta hensyn til stemningen i gruppen.', dimensjon: 'omgjengelighet', keyed: 'negativ' },
   { id: 'omgj_9', tekst: 'Jeg prioriterer egne oppgaver fremfor å hjelpe andre hvis jeg har dårlig tid.', dimensjon: 'omgjengelighet', keyed: 'negativ' },
   { id: 'omgj_10', tekst: 'Jeg havner av og til i diskusjoner fordi jeg er veldig direkte i min kommunikasjonsstil.', dimensjon: 'omgjengelighet', keyed: 'negativ' },
   { id: 'omgj_11', tekst: 'Jeg kan være skeptisk til motiver hvis en kollega plutselig endrer mening.', dimensjon: 'omgjengelighet', keyed: 'negativ' },
@@ -90,15 +98,33 @@ export const statements: Statement[] = [
   { id: 'aape_4', tekst: 'Jeg foreslår ofte alternative løsninger på etablerte problemer på jobb.', dimensjon: 'aapenhet', keyed: 'positiv' },
   { id: 'aape_5', tekst: 'Jeg blir inspirert av kreative idemyldringer og utradisjonelle konsepter.', dimensjon: 'aapenhet', keyed: 'positiv' },
   { id: 'aape_6', tekst: 'Jeg liker å analysere komplekse problemstillinger fra ulike vinkler.', dimensjon: 'aapenhet', keyed: 'positiv' },
-  { id: 'aape_7', tekst: 'Jeg takker gjerne ja til kurs eller opplæring innen nye fagområder.', dimensjon: 'aapenhet', keyed: 'positiv' },
-  { id: 'aape_8', tekst: 'Jeg synes det er spennende å jobbe i prosjekter der rammene ikke er helt fastlagt.', dimensjon: 'aapenhet', keyed: 'positiv' },
+  { id: 'aape_7', tekst: 'Jeg unngår ofte oppgaver som krever at jeg må lære noe helt nytt.', dimensjon: 'aapenhet', keyed: 'negativ' },
+  { id: 'aape_8', tekst: 'Jeg synes ofte nye ideer skaper mer uro enn verdi.', dimensjon: 'aapenhet', keyed: 'negativ' },
   { id: 'aape_9', tekst: 'Jeg foretrekker kjente og utprøvde metoder fremfor å eksperimentere med nye ting på jobb.', dimensjon: 'aapenhet', keyed: 'negativ' },
   { id: 'aape_10', tekst: 'Jeg synes det er unødvendig å bruke tid på å diskutere teorier som ikke har direkte praktisk nytte.', dimensjon: 'aapenhet', keyed: 'negativ' },
   { id: 'aape_11', tekst: 'Jeg liker best oppgaver med klare, faste rammer som ikke endrer seg underveis.', dimensjon: 'aapenhet', keyed: 'negativ' },
-  { id: 'aape_12', tekst: 'Jeg foretrekker å konsentrere meg strengt om mitt eget fagområde fremfor å lære om andres.', dimensjon: 'aapenhet', keyed: 'negativ' }
+  { id: 'aape_12', tekst: 'Jeg foretrekker å konsentrere meg strengt om mitt eget fagområde fremfor å lære om andres.', dimensjon: 'aapenhet', keyed: 'negativ' },
+
+  // --- Integritet (integ_) — EGEN skala, ikke Big Five. Måler pålitelighet,
+  //     risikoholdning og etisk dømmekraft via indirekte + direkte påstander.
+  //     Egne formuleringer. Høy skår (etter reversering) = høy pålitelighet. ---
+  // Indirekte (personlighetsorienterte)
+  { id: 'integ_1', tekst: 'Folk kan stole på at jeg gjør akkurat det jeg har lovet.', dimensjon: 'integritet', keyed: 'positiv' },
+  { id: 'integ_2', tekst: 'Jeg holder orden på ting jeg har ansvar for, også når ingen kontrollerer meg.', dimensjon: 'integritet', keyed: 'positiv' },
+  { id: 'integ_3', tekst: 'Jeg liker å ta sjanser i hverdagen, selv når utfallet er usikkert.', dimensjon: 'integritet', keyed: 'negativ' },
+  { id: 'integ_4', tekst: 'Jeg handler ofte på impuls uten å tenke gjennom konsekvensene.', dimensjon: 'integritet', keyed: 'negativ' },
+  { id: 'integ_5', tekst: 'Jeg synes regler ofte er til for å brytes når de står i veien.', dimensjon: 'integritet', keyed: 'negativ' },
+  { id: 'integ_6', tekst: 'Jeg tar gjerne en snarvei hvis det sparer meg tid, selv om det bryter med rutinen.', dimensjon: 'integritet', keyed: 'negativ' },
+  // Direkte (åpne holdningsspørsmål)
+  { id: 'integ_7', tekst: 'De fleste mennesker er ærlige og til å stole på.', dimensjon: 'integritet', keyed: 'positiv' },
+  { id: 'integ_8', tekst: 'Ærlighet er viktigere for meg enn å fremstå perfekt.', dimensjon: 'integritet', keyed: 'positiv' },
+  { id: 'integ_9', tekst: 'Jeg ville meldt fra dersom jeg oppdaget at en kollega underslo penger.', dimensjon: 'integritet', keyed: 'positiv' },
+  { id: 'integ_10', tekst: 'Litt fusk eller juks på jobb er egentlig ikke så farlig.', dimensjon: 'integritet', keyed: 'negativ' },
+  { id: 'integ_11', tekst: 'Om anledningen bød seg, kunne jeg tatt med meg en ting av liten verdi fra arbeidsplassen.', dimensjon: 'integritet', keyed: 'negativ' },
+  { id: 'integ_12', tekst: 'Alle pynter litt på sannheten i et jobbintervju.', dimensjon: 'integritet', keyed: 'negativ' }
 ];
 
-export const dimensionsData: Record<DimensionKey, DimensionInfo> = {
+export const dimensionsData: Record<BigFiveKey, DimensionInfo> = {
   planmessighet: {
     name: 'Planmessighet',
     description: 'Handler om din tendens til struktur, disiplin, orden og pålitelighet i oppgaveutførelse.',
@@ -196,7 +222,7 @@ export const resolveDimensionKey = (raw: string): DimensionKey | undefined => {
 };
 
 export const consistencyPairs: {
-  dimensjon: DimensionKey;
+  dimensjon: BigFiveKey;
   st1Id: string;
   st2Id: string;
   label: string;
@@ -233,7 +259,7 @@ export const consistencyPairs: {
   }
 ];
 
-export const bandsData: Record<DimensionKey, Record<'Lav' | 'Moderat' | 'Høy', BandContent>> = {
+export const bandsData: Record<BigFiveKey, Record<'Lav' | 'Moderat' | 'Høy', BandContent>> = {
   planmessighet: {
     Lav: {
       interpretation: 'Du trives best i fleksible og dynamiske omgivelser hvor rammene ikke er for strenge. Du foretrekker å ta utfordringer som de kommer fremfor å følge en rigid plan.',
@@ -705,4 +731,146 @@ export function getBand(score: number): Band {
   if (score <= 2.6) return 'Lav';
   if (score >= 3.7) return 'Høy';
   return 'Moderat';
+}
+
+/** Standardize a 1–5 mean score to a POMP score (Percent of Maximum Possible, 0–100).
+ *  POMP = (skår − min) / (maks − min) × 100, med min=1 og maks=5 på Likert-skalaen. */
+export function toPOMP(score: number): number {
+  const pomp = ((score - 1) / 4) * 100;
+  return Math.max(0, Math.min(100, Math.round(pomp)));
+}
+
+// ---------------------------------------------------------------------------
+// Integritetsskala — egen skala (ikke Big Five). Lettvekts info-objekt: vi
+// gjenbruker computeDimensionScore('integritet') + getBand + toPOMP for tall,
+// og viser en kort, ærlig og ikke-dømmende tolkning per bånd i resultatene.
+// ---------------------------------------------------------------------------
+export const INTEGRITY_KEY: DimensionKey = 'integritet';
+
+export interface IntegrityBandContent {
+  interpretation: string;
+  prepTip: string;
+}
+
+export const integrityInfo: {
+  name: string;
+  description: string;
+  bands: Record<Band, IntegrityBandContent>;
+} = {
+  name: 'Integritet og pålitelighet',
+  description:
+    'En egen skala som mange rekrutteringstester (særlig innen politi, forsvar og finans) kombinerer med personlighetsprofilen. Den handler om pålitelighet, holdning til regler og risiko, og etisk dømmekraft — ikke om du er et «godt» eller «dårlig» menneske.',
+  bands: {
+    Høy: {
+      interpretation:
+        'Svarene dine peker mot en sterk vekt på pålitelighet, ærlighet og det å følge felles kjøreregler. Dette er ofte ønsket i roller med tillit, sikkerhet eller verdihåndtering.',
+      prepTip:
+        'Vær forberedt på å vise, ikke bare hevde, integritet: ha et konkret eksempel klart der du gjorde det riktige selv når det kostet deg noe. Unngå å virke rigid — vis at du også bruker skjønn.',
+    },
+    Moderat: {
+      interpretation:
+        'Svarene dine viser en balansert holdning: pålitelig, men pragmatisk. Du veier regler mot situasjon snarere enn å følge dem blindt.',
+      prepTip:
+        'Forbered en STAR-historie som viser at du tar ansvar og er til å stole på, men også kan bruke sunn dømmekraft når reglene ikke passer situasjonen.',
+    },
+    Lav: {
+      interpretation:
+        'Svarene dine peker mot høyere risikovilje og en mer selvstendig holdning til regler. Det kan være en styrke i roller som krever mot og nytenkning, men kan skape spørsmål i tillits- og sikkerhetskritiske stillinger.',
+      prepTip:
+        'I en ekte test fanges «pynting» lett opp. Vær heller forberedt på å ramme inn risikoviljen din konstruktivt — vis at du forstår når forsiktighet og etterrettelighet er nødvendig, med et konkret eksempel.',
+    },
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Illustrative work-style reference profiles.
+//
+// These are NOT normed occupational personality profiles and must not be
+// presented as career advice, suitability assessment, or scientific matching.
+// They are used only as a lightweight reflection feature in the results view
+// (kun Big Five inngår — ikke integritet, siden dette handler om arbeidsstil,
+// ikke pålitelighet).
+// ---------------------------------------------------------------------------
+export interface RoleProfile {
+  id: string;
+  name: string;
+  blurb: string;
+  profile: Record<BigFiveKey, number>;
+}
+
+export const roleProfiles: RoleProfile[] = [
+  {
+    id: 'selger',
+    name: 'Selger',
+    blurb: 'Trives ofte med kontakt, initiativ og å håndtere både ja og nei i møte med kunder.',
+    profile: { planmessighet: 3.5, emosjonell_stabilitet: 3.8, ekstroversjon: 4.4, omgjengelighet: 3.2, aapenhet: 3.0 },
+  },
+  {
+    id: 'prosjektleder',
+    name: 'Prosjektleder',
+    blurb: 'Liker struktur, fremdrift og koordinering av mennesker, mål og frister.',
+    profile: { planmessighet: 4.3, emosjonell_stabilitet: 4.0, ekstroversjon: 3.7, omgjengelighet: 3.6, aapenhet: 3.4 },
+  },
+  {
+    id: 'utvikler',
+    name: 'Utvikler / IT',
+    blurb: 'Trives med problemløsing, læring og konsentrert arbeid, gjerne kombinert med samarbeid.',
+    profile: { planmessighet: 4.0, emosjonell_stabilitet: 3.6, ekstroversjon: 3.0, omgjengelighet: 3.3, aapenhet: 4.2 },
+  },
+  {
+    id: 'sykepleier',
+    name: 'Sykepleier',
+    blurb: 'Kombinerer ansvarsfølelse, menneskekontakt og evne til å bevare ro i krevende situasjoner.',
+    profile: { planmessighet: 4.1, emosjonell_stabilitet: 4.0, ekstroversjon: 3.4, omgjengelighet: 4.3, aapenhet: 3.2 },
+  },
+  {
+    id: 'regnskapsforer',
+    name: 'Regnskapsfører',
+    blurb: 'Trives med nøyaktighet, oversikt og pålitelige prosesser i arbeid med tall og dokumentasjon.',
+    profile: { planmessighet: 4.4, emosjonell_stabilitet: 3.8, ekstroversjon: 2.8, omgjengelighet: 3.4, aapenhet: 3.1 },
+  },
+  {
+    id: 'laerer',
+    name: 'Lærer',
+    blurb: 'Kombinerer formidling, tålmodighet og struktur med interesse for utvikling og læring.',
+    profile: { planmessighet: 4.0, emosjonell_stabilitet: 3.9, ekstroversjon: 3.9, omgjengelighet: 4.1, aapenhet: 3.8 },
+  },
+  {
+    id: 'hr-radgiver',
+    name: 'HR-rådgiver',
+    blurb: 'Trives med samtaler, diskresjon og vurderinger der både mennesker og regler betyr noe.',
+    profile: { planmessighet: 3.9, emosjonell_stabilitet: 4.0, ekstroversjon: 3.6, omgjengelighet: 4.2, aapenhet: 3.6 },
+  },
+  {
+    id: 'kunde-service',
+    name: 'Kunde- og servicearbeid',
+    blurb: 'Liker å hjelpe, forklare og holde roen i praktisk kontakt med ulike mennesker.',
+    profile: { planmessighet: 3.6, emosjonell_stabilitet: 4.0, ekstroversjon: 3.7, omgjengelighet: 4.2, aapenhet: 3.1 },
+  },
+  {
+    id: 'konsulent',
+    name: 'Konsulent',
+    blurb: 'Liker nye problemstillinger, leveransefokus og å tilpasse seg ulike kunder eller behov.',
+    profile: { planmessighet: 4.1, emosjonell_stabilitet: 4.0, ekstroversjon: 4.0, omgjengelighet: 3.6, aapenhet: 4.0 },
+  },
+];
+
+export interface RankedRoleProfile extends RoleProfile {
+  distance: number;
+}
+
+/**
+ * Sorterer alle referanseprofilene etter euklidsk avstand til brukerens Big
+ * Five-skårer og returnerer de `limit` nærmeste. Avstanden er kun til intern
+ * sortering — vis den ikke direkte til brukeren (falsk presisjon).
+ */
+export function findClosestRoles(scores: Record<BigFiveKey, number>, limit = 3): RankedRoleProfile[] {
+  return roleProfiles
+    .map((role) => {
+      const keys = Object.keys(role.profile) as BigFiveKey[];
+      const distance = Math.sqrt(keys.reduce((sum, k) => sum + (scores[k] - role.profile[k]) ** 2, 0));
+      return { ...role, distance };
+    })
+    .sort((a, b) => a.distance - b.distance)
+    .slice(0, limit);
 }

@@ -26,7 +26,7 @@ export default function InterviewPrep({ answers, onNavigateToTab }: InterviewPre
           
           <h2 className="text-xl font-bold text-slate-900 mb-2">Intervjuforberedelsen er låst</h2>
           <p className="text-slate-600 text-sm leading-relaxed mb-6">
-            For å generere skreddersydde intervjuspørsmål, refleksjonspunkter og eksempelsvar tilpasset din personlighetsprofil, må du fullføre alle 60 påstandene i spørreskjemaet først.
+            For å generere skreddersydde intervjuspørsmål, refleksjonspunkter og eksempelsvar tilpasset din personlighetsprofil, må du fullføre alle {statements.length} påstandene i spørreskjemaet først.
           </p>
 
           <button

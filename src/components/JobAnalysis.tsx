@@ -3,6 +3,8 @@ import { statements, DimensionKey, dimensionsData, resolveDimensionKey, computeD
 import { useAuth } from '../auth/AuthContext';
 import { useFeedback } from '../ui/Feedback';
 import CreditPurchase from './CreditPurchase';
+import AiConsentNotice, { hasAiConsent } from './AiConsentNotice';
+import { track } from '../utils/track';
 import {
   Briefcase, 
   Sparkles, 
@@ -80,6 +82,7 @@ export default function JobAnalysis({ answers, notes, onSaveNote, onNavigateToTa
 
   // 2. States for inputs
   const [isExportingPdf, setIsExportingPdf] = useState<boolean>(false);
+  const [aiConsent, setAiConsent] = useState<boolean>(() => hasAiConsent());
   const [jobTitle, setJobTitle] = useState<string>(() => {
     return localStorage.getItem('bigfive_prep_job_title') || '';
   });
@@ -217,6 +220,7 @@ export default function JobAnalysis({ answers, notes, onSaveNote, onNavigateToTa
       setAnalysis(analysisData);
       localStorage.setItem('bigfive_prep_job_analysis', JSON.stringify(analysisData));
       refreshCredits(); // reflect the spent credit in the header
+      track('job_analysis_run');
 
       // Record in history. Premium keeps a list (capped); free keeps only the latest.
       const entry: SavedAnalysis = {
@@ -253,7 +257,7 @@ export default function JobAnalysis({ answers, notes, onSaveNote, onNavigateToTa
       const msg =
         typeof err?.message === 'string' && err.message.trim()
           ? err.message
-          : "Analysen kunne ikke fullføres akkurat nå — tentamen-resultatene dine er trygt lagret. Prøv igjen senere.";
+          : "Analysen kunne ikke fullføres akkurat nå — testresultatene dine er trygt lagret. Prøv igjen senere.";
       setError(msg);
     } finally {
       setLoading(false);
@@ -417,7 +421,7 @@ export default function JobAnalysis({ answers, notes, onSaveNote, onNavigateToTa
             
             <h3 className="font-bold text-slate-900 text-lg">AI-analysen er låst</h3>
             <p className="text-slate-600 text-xs sm:text-sm leading-relaxed">
-              For at vi skal kunne gjøre en grundig og personlig match, må du fullføre de 60 påstandene i personlighetstesten din først.
+              For at vi skal kunne gjøre en grundig og personlig match, må du fullføre de {statements.length} påstandene i personlighetstesten din først.
             </p>
 
             <div className="bg-white p-4 border border-teal-100/20 rounded-lg text-xs space-y-2 text-slate-600">
@@ -434,7 +438,7 @@ export default function JobAnalysis({ answers, notes, onSaveNote, onNavigateToTa
               onClick={() => onNavigateToTab('questionnaire')}
               className="w-full bg-teal-700 hover:bg-teal-800 text-white font-semibold py-2.5 px-4 rounded-lg transition shadow-xs cursor-pointer flex items-center justify-center gap-2"
             >
-              Fullfør spørreskjemaet ({answeredCount}/60)
+              Fullfør spørreskjemaet ({answeredCount}/{statements.length})
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
@@ -592,9 +596,9 @@ export default function JobAnalysis({ answers, notes, onSaveNote, onNavigateToTa
                 ) : (
                   <button
                     onClick={handleRunAnalysis}
-                    disabled={!jobTitle.trim()}
+                    disabled={!jobTitle.trim() || !aiConsent}
                     className={`w-full font-bold py-3 px-4 rounded-lg transition shadow-xs flex items-center justify-center gap-2 cursor-pointer ${
-                      jobTitle.trim()
+                      jobTitle.trim() && aiConsent
                         ? 'bg-teal-700 hover:bg-teal-800 text-white'
                         : 'bg-slate-100 text-slate-400 cursor-not-allowed'
                     }`}
@@ -603,12 +607,9 @@ export default function JobAnalysis({ answers, notes, onSaveNote, onNavigateToTa
                     Analyser min profil mot stillingen med AI {configured ? '(1 klipp)' : ''}
                   </button>
                 )}
-                <p className="text-[11px] text-slate-400 leading-relaxed mt-2.5 flex items-start gap-1.5">
-                  <ShieldAlert className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
-                  <span>
-                    Når du starter analysen, sendes stillingstittel, stillingsbeskrivelse og dine Big Five-skårer til <strong>Google Gemini</strong> for å generere rapporten. Ikke lim inn sensitive personopplysninger. Resten av appen fungerer 100&nbsp;% lokalt.
-                  </span>
-                </p>
+                <div className="mt-2.5">
+                  <AiConsentNotice onChange={setAiConsent} />
+                </div>
               </div>
             </div>
           )}

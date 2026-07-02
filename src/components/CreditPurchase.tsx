@@ -85,7 +85,7 @@ export default function CreditPurchase({
   return (
     <div className="space-y-3">
       {comingSoon && (
-        <p className="text-xs sm:text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+        <p className="text-xs sm:text-sm text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
           Kjøp av klipp åpner snart. Ta kontakt om du trenger flere klipp i mellomtiden.
         </p>
       )}
@@ -100,17 +100,17 @@ export default function CreditPurchase({
             title={comingSoon ? 'Kjøp åpner snart' : blocked ? 'Bekreft samtykket under for å kjøpe' : undefined}
             className={`relative flex items-center justify-between gap-3 bg-white rounded-xl p-4 transition text-left disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer ${
               pkg.badge
-                ? 'border-2 border-amber-300 hover:border-amber-400 hover:bg-amber-50/40'
-                : 'border border-amber-200 hover:border-amber-300 hover:bg-amber-50/40'
+                ? 'border-2 border-gold-300 hover:border-gold-400 hover:bg-gold-50/40'
+                : 'border border-gold-200 hover:border-gold-300 hover:bg-gold-50/40'
             }`}
           >
             {pkg.badge && (
-              <span className="absolute -top-2 left-3 bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+              <span className="absolute -top-2 left-3 bg-gold-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
                 {pkg.badge}
               </span>
             )}
             <span className="flex items-center gap-3">
-              <span className="w-9 h-9 bg-amber-50 border border-amber-100 rounded-lg flex items-center justify-center text-amber-600 shrink-0">
+              <span className="w-9 h-9 bg-gold-50 border border-gold-100 rounded-lg flex items-center justify-center text-gold-600 shrink-0">
                 {busyId === pkg.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Ticket className="w-4 h-4" />}
               </span>
               <span>

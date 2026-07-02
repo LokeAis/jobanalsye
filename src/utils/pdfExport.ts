@@ -1,5 +1,5 @@
 import jsPDF from 'jspdf';
-import { dimensionsData, DimensionKey, resolveDimensionKey, computeDimensionScore, getBand } from '../data/statements';
+import { statements, dimensionsData, DimensionKey, BigFiveKey, resolveDimensionKey, computeDimensionScore, getBand, toPOMP, integrityInfo, INTEGRITY_KEY } from '../data/statements';
 
 interface DimNote {
   workExample: string;
@@ -89,6 +89,29 @@ export const exportBriefingToPdf = async (
     if (jobTitle) meta = `Søkt stilling: ${jobTitle}   ·   ${meta}`;
     if (analysis?.matchBand) meta += `   ·   Match: ${analysis.matchBand}`;
     text(meta, 9, { color: [100, 116, 139], gap: 3 });
+
+    // --- Profile summary (Big Five + integrity), only when the test is complete ---
+    const answeredCount = statements.filter((s) => answers[s.id] !== undefined).length;
+    if (answeredCount === statements.length) {
+      heading('Din profil (Big Five + integritet)');
+      (Object.keys(dimensionsData) as BigFiveKey[]).forEach((key) => {
+        const sc = getScore(key);
+        text(`${dimensionsData[key].name}: ${getBand(sc)} tendens — ${sc.toFixed(1)}/5 (POMP ${toPOMP(sc)}/100)`, 9, {
+          color: [15, 23, 42],
+          gap: 1,
+        });
+      });
+      const iSc = getScore(INTEGRITY_KEY);
+      text(`${integrityInfo.name}: ${getBand(iSc)} tendens — ${iSc.toFixed(1)}/5 (POMP ${toPOMP(iSc)}/100)`, 9, {
+        color: [15, 23, 42],
+        gap: 1,
+      });
+      text('Ikke normert mot en referansegruppe — kun veiledende refleksjon.', 8, {
+        italic: true,
+        color: [148, 163, 184],
+        gap: 3,
+      });
+    }
 
     // --- Analysis sections (only when an analysis exists) ---
     if (analysis) {
